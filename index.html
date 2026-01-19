@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Investment Portfolio Tracker</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 40px;
+        }
+
+        h1 {
+            color: #2d3748;
+            margin-bottom: 10px;
+            font-size: 32px;
+        }
+
+        .subtitle {
+            color: #718096;
+            margin-bottom: 30px;
+            font-size: 16px;
+        }
+
+        .upload-section {
+            background: #f7fafc;
+            border: 2px dashed #cbd5e0;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .file-input-wrapper {
+            display: inline-block;
+            margin: 10px;
+        }
+
+        .file-input-wrapper label {
+            display: inline-block;
+            padding: 12px 24px;
+            background: #667eea;
+            color: white;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.3s;
+            font-weight: 500;
+        }
+
+        .file-input-wrapper label:hover {
+            background: #5a67d8;
+        }
+
+        .file-input-wrapper input {
+            display: none;
+        }
+
+        .file-name {
+            display: block;
+            margin-top: 8px;
+            color: #4a5568;
+            font-size: 14px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 24px;
+            border-radius: 12px;
+            color: white;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .stat-label {
+            font-size: 14px;
+            opacity: 0.9;
+            margin-bottom: 8px;
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: 700;
+        }
+
+        .stat-change {
+            font-size: 14px;
+            margin-top: 8px;
+            opacity: 0.9;
+        }
+
+        .chart-container {
+            background: white;
+            padding: 24px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .chart-container h2 {
+            color: #2d3748;
+            margin-bottom: 20px;
+            font-size: 20px;
+        }
+
+        .transactions-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        .transactions-table th {
+            background: #f7fafc;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            color: #4a5568;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .transactions-table td {
+            padding: 12px;
+            border-bottom: 1px solid #e2e8f0;
+            color: #2d3748;
+        }
+
+        .transactions-table tr:hover {
+            background: #f7fafc;
+        }
+
+        .buy {
+            color: #38a169;
+            font-weight: 600;
+        }
+
+        .sell {
+            color: #e53e3e;
+            font-weight: 600;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #718096;
+        }
+
+        .error {
+            background: #fed7d7;
+            color: #c53030;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📈 Investment Portfolio Tracker</h1>
+        <p class="subtitle">Upload your Fidelity year-end statements and transaction data to visualize your 2025 portfolio performance</p>
+
+        <div class="upload-section">
+            <h3 style="margin-bottom: 20px; color: #2d3748;">Upload Your Data</h3>
+            
+            <div class="file-input-wrapper">
+                <label for="pdf2024">
+                    📄 2024 Statement (PDF)
+                </label>
+                <input type="file" id="pdf2024" accept=".pdf">
+                <span class="file-name" id="pdf2024-name">No file chosen</span>
+            </div>
+
+            <div class="file-input-wrapper">
+                <label for="pdf2025">
+                    📄 2025 Statement (PDF)
+                </label>
+                <input type="file" id="pdf2025" accept=".pdf">
+                <span class="file-name" id="pdf2025-name">No file chosen</span>
+            </div>
+
+            <div class="file-input-wrapper">
+                <label for="csvTransactions">
+                    📊 Transactions (CSV)
+                </label>
+                <input type="file" id="csvTransactions" accept=".csv">
+                <span class="file-name" id="csv-name">No file chosen</span>
+            </div>
+        </div>
+
+        <div id="error-message"></div>
+        <div id="loading" class="loading" style="display: none;">Processing your data...</div>
+
+        <div id="dashboard" style="display: none;">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Portfolio Value (2025)</div>
+                    <div class="stat-value" id="current-value">$0</div>
+                    <div class="stat-change" id="year-change">+$0 (0%)</div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-label">Total Purchases</div>
+                    <div class="stat-value" id="total-purchases">$0</div>
+                    <div class="stat-change" id="purchase-count">0 transactions</div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-label">Total Sales</div>
+                    <div class="stat-value" id="total-sales">$0</div>
+                    <div class="stat-change" id="sale-count">0 transactions</div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-label">Net Activity</div>
+                    <div class="stat-value" id="net-activity">$0</div>
+                    <div class="stat-change" id="activity-type">Invested</div>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <h2>Portfolio Growth (2024 - 2025)</h2>
+                <canvas id="growthChart"></canvas>
+            </div>
+
+            <div class="chart-container">
+                <h2>Monthly Transaction Activity</h2>
+                <canvas id="transactionChart"></canvas>
+            </div>
+
+            <div class="chart-container">
+                <h2>2025 Transaction History</h2>
+                <table class="transactions-table" id="transactions-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Type</th>
+                            <th>Symbol</th>
+                            <th>Description</th>
+                            <th>Quantity</th>
+                            <th>Price</th>
+                            <th>Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody id="transactions-body">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+        let portfolioData = {
+            value2024: 0,
+            value2025: 0,
+            transactions: []
+        };
+
+        // File input handlers
+        document.getElementById('pdf2024').addEventListener('change', function(e) {
+            document.getElementById('pdf2024-name').textContent = e.target.files[0]?.name || 'No file chosen';
+            if (e.target.files[0]) processPDF(e.target.files[0], 2024);
+        });
+
+        document.getElementById('pdf2025').addEventListener('change', function(e) {
+            document.getElementById('pdf2025-name').textContent = e.target.files[0]?.name || 'No file chosen';
+            if (e.target.files[0]) processPDF(e.target.files[0], 2025);
+        });
+
+        document.getElementById('csvTransactions').addEventListener('change', function(e) {
+            document.getElementById('csv-name').textContent = e.target.files[0]?.name || 'No file chosen';
+            if (e.target.files[0]) processCSV(e.target.files[0]);
+        });
+
+        async function processPDF(file, year) {
+            try {
+                showLoading(true);
+                const arrayBuffer = await file.arrayBuffer();
+                const pdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
+                
+                let text = '';
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    const page = await pdf.getPage(i);
+                    const content = await page.getTextContent();
+                    text += content.items.map(item => item.str).join(' ');
+                }
+
+                // Extract portfolio value (looking for common patterns in Fidelity statements)
+                const valueMatch = text.match(/Total\s+Account\s+Value[:\s]+\$?([\d,]+\.?\d*)/i) ||
+                                 text.match(/Portfolio\s+Value[:\s]+\$?([\d,]+\.?\d*)/i) ||
+                                 text.match(/Account\s+Balance[:\s]+\$?([\d,]+\.?\d*)/i);
+                
+                if (valueMatch) {
+                    const value = parseFloat(valueMatch[1].replace(/,/g, ''));
+                    if (year === 2024) {
+                        portfolioData.value2024 = value;
+                    } else {
+                        portfolioData.value2025 = value;
+                    }
+                }
+
+                updateDashboard();
+                showLoading(false);
+            } catch (error) {
+                showError(`Error processing ${year} PDF: ${error.message}`);
+                showLoading(false);
+            }
+        }
+
+        function processCSV(file) {
+            showLoading(true);
+            
+            Papa.parse(file, {
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    try {
+                        portfolioData.transactions = results.data
+                            .map(row => {
+                                // Normalize column names (Fidelity CSV format may vary)
+                                const date = row['Run Date'] || row['Date'] || row['Trade Date'] || '';
+                                const action = row['Action'] || row['Type'] || row['Transaction Type'] || '';
+                                const symbol = row['Symbol'] || row['Ticker'] || '';
+                                const description = row['Description'] || row['Security Description'] || '';
+                                const quantity = row['Quantity'] || row['Shares'] || '0';
+                                const price = row['Price'] || row['Unit Price'] || '0';
+                                const amount = row['Amount'] || row['Net Amount'] || '0';
+
+                                return {
+                                    date: date,
+                                    action: action,
+                                    symbol: symbol,
+                                    description: description,
+                                    quantity: parseFloat(quantity.toString().replace(/,/g, '')) || 0,
+                                    price: parseFloat(price.toString().replace(/[\$,]/g, '')) || 0,
+                                    amount: parseFloat(amount.toString().replace(/[\$,]/g, '')) || 0
+                                };
+                            })
+                            .filter(t => t.date && t.action)
+                            .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+                        updateDashboard();
+                        showLoading(false);
+                    } catch (error) {
+                        showError(`Error processing CSV: ${error.message}`);
+                        showLoading(false);
+                    }
+                }
+            });
+        }
+
+        function updateDashboard() {
+            if (portfolioData.value2024 === 0 && portfolioData.value2025 === 0 && portfolioData.transactions.length === 0) {
+                return;
+            }
+
+            document.getElementById('dashboard').style.display = 'block';
+
+            // Calculate statistics
+            const purchases = portfolioData.transactions.filter(t => 
+                t.action.toLowerCase().includes('buy') || 
+                t.action.toLowerCase().includes('purchase')
+            );
+            const sales = portfolioData.transactions.filter(t => 
+                t.action.toLowerCase().includes('sell') || 
+                t.action.toLowerCase().includes('sale')
+            );
+
+            const totalPurchases = purchases.reduce((sum, t) => sum + Math.abs(t.amount), 0);
+            const totalSales = sales.reduce((sum, t) => sum + Math.abs(t.amount), 0);
+            const netActivity = totalPurchases - totalSales;
+
+            // Update stats
+            document.getElementById('current-value').textContent = `$${portfolioData.value2025.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            
+            const change = portfolioData.value2025 - portfolioData.value2024;
+            const changePercent = portfolioData.value2024 > 0 ? ((change / portfolioData.value2024) * 100) : 0;
+            document.getElementById('year-change').textContent = `${change >= 0 ? '+' : ''}$${change.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})} (${changePercent.toFixed(2)}%)`;
+
+            document.getElementById('total-purchases').textContent = `$${totalPurchases.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            document.getElementById('purchase-count').textContent = `${purchases.length} transactions`;
+
+            document.getElementById('total-sales').textContent = `$${totalSales.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            document.getElementById('sale-count').textContent = `${sales.length} transactions`;
+
+            document.getElementById('net-activity').textContent = `$${Math.abs(netActivity).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            document.getElementById('activity-type').textContent = netActivity >= 0 ? 'Net Invested' : 'Net Withdrawn';
+
+            // Create charts
+            createGrowthChart();
+            createTransactionChart(purchases, sales);
+            createTransactionTable();
+        }
+
+        function createGrowthChart() {
+            const ctx = document.getElementById('growthChart');
+            if (window.growthChart) window.growthChart.destroy();
+
+            window.growthChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['End of 2024', 'End of 2025'],
+                    datasets: [{
+                        label: 'Portfolio Value',
+                        data: [portfolioData.value2024, portfolioData.value2025],
+                        borderColor: '#667eea',
+                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                        tension: 0.4,
+                        fill: true,
+                        pointRadius: 6,
+                        pointHoverRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            ticks: {
+                                callback: function(value) {
+                                    return '$' + value.toLocaleString();
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function createTransactionChart(purchases, sales) {
+            const ctx = document.getElementById('transactionChart');
+            if (window.transactionChart) window.transactionChart.destroy();
+
+            // Group by month
+            const monthlyData = {};
+            
+            [...purchases, ...sales].forEach(t => {
+                const date = new Date(t.date);
+                const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+                
+                if (!monthlyData[monthKey]) {
+                    monthlyData[monthKey] = { purchases: 0, sales: 0 };
+                }
+                
+                if (purchases.includes(t)) {
+                    monthlyData[monthKey].purchases += Math.abs(t.amount);
+                } else {
+                    monthlyData[monthKey].sales += Math.abs(t.amount);
+                }
+            });
+
+            const sortedMonths = Object.keys(monthlyData).sort();
+            
+            window.transactionChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: sortedMonths.map(m => {
+                        const [year, month] = m.split('-');
+                        return new Date(year, month - 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+                    }),
+                    datasets: [{
+                        label: 'Purchases',
+                        data: sortedMonths.map(m => monthlyData[m].purchases),
+                        backgroundColor: 'rgba(56, 161, 105, 0.8)'
+                    }, {
+                        label: 'Sales',
+                        data: sortedMonths.map(m => monthlyData[m].sales),
+                        backgroundColor: 'rgba(229, 62, 62, 0.8)'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return '$' + value.toLocaleString();
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function createTransactionTable() {
+            const tbody = document.getElementById('transactions-body');
+            tbody.innerHTML = '';
+
+            portfolioData.transactions.slice().reverse().forEach(t => {
+                const row = tbody.insertRow();
+                const isBuy = t.action.toLowerCase().includes('buy') || t.action.toLowerCase().includes('purchase');
+                
+                row.innerHTML = `
+                    <td>${new Date(t.date).toLocaleDateString('en-US')}</td>
+                    <td class="${isBuy ? 'buy' : 'sell'}">${t.action}</td>
+                    <td><strong>${t.symbol || '-'}</strong></td>
+                    <td>${t.description}</td>
+                    <td>${t.quantity || '-'}</td>
+                    <td>$${t.price > 0 ? t.price.toFixed(2) : '-'}</td>
+                    <td class="${isBuy ? 'buy' : 'sell'}">$${Math.abs(t.amount).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                `;
+            });
+        }
+
+        function showLoading(show) {
+            document.getElementById('loading').style.display = show ? 'block' : 'none';
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error-message');
+            errorDiv.className = 'error';
+            errorDiv.textContent = message;
+            setTimeout(() => {
+                errorDiv.textContent = '';
+                errorDiv.className = '';
+            }, 5000);
+        }
+    </script>
+</body>
+</html>
