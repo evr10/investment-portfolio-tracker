@@ -141,6 +141,8 @@
             font-weight: 600;
             color: #4a5568;
             border-bottom: 2px solid #e2e8f0;
+            position: sticky;
+            top: 0;
         }
 
         .transactions-table td {
@@ -175,6 +177,45 @@
             padding: 12px;
             border-radius: 8px;
             margin-bottom: 20px;
+        }
+
+        .account-card {
+            background: #f7fafc;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            border-left: 4px solid #667eea;
+        }
+
+        .account-card h3 {
+            color: #2d3748;
+            margin-bottom: 10px;
+            font-size: 18px;
+        }
+
+        .account-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 10px;
+        }
+
+        .account-stat {
+            background: white;
+            padding: 12px;
+            border-radius: 6px;
+        }
+
+        .account-stat-label {
+            font-size: 12px;
+            color: #718096;
+            margin-bottom: 4px;
+        }
+
+        .account-stat-value {
+            font-size: 20px;
+            font-weight: 700;
+            color: #2d3748;
         }
     </style>
 </head>
@@ -247,16 +288,42 @@
             </div>
 
             <div class="chart-container">
+                <h2>Account Performance Breakdown</h2>
+                <div id="account-breakdown"></div>
+            </div>
+
+            <div class="chart-container">
+                <h2>Performance by Holding</h2>
+                <canvas id="holdingsChart"></canvas>
+            </div>
+
+            <div class="chart-container">
+                <h2>Buy/Sell Activity by Symbol</h2>
+                <canvas id="symbolActivityChart"></canvas>
+            </div>
+
+            <div class="chart-container">
                 <h2>Monthly Transaction Activity</h2>
                 <canvas id="transactionChart"></canvas>
             </div>
 
             <div class="chart-container">
-                <h2>2025 Transaction History</h2>
+                <h2>Transaction History by Account</h2>
+                <div style="margin-bottom: 20px;">
+                    <label for="account-filter" style="font-weight: 600; margin-right: 10px;">Filter by Account:</label>
+                    <select id="account-filter" style="padding: 8px 12px; border-radius: 6px; border: 1px solid #cbd5e0;">
+                        <option value="all">All Accounts</option>
+                    </select>
+                    <label for="symbol-filter" style="font-weight: 600; margin-left: 20px; margin-right: 10px;">Filter by Symbol:</label>
+                    <select id="symbol-filter" style="padding: 8px 12px; border-radius: 6px; border: 1px solid #cbd5e0;">
+                        <option value="all">All Symbols</option>
+                    </select>
+                </div>
                 <table class="transactions-table" id="transactions-table">
                     <thead>
                         <tr>
                             <th>Date</th>
+                            <th>Account</th>
                             <th>Type</th>
                             <th>Symbol</th>
                             <th>Description</th>
@@ -278,7 +345,8 @@
         let portfolioData = {
             value2024: 0,
             value2025: 0,
-            transactions: []
+            transactions: [],
+            accounts: {} // Store account-specific data
         };
 
         // File input handlers
@@ -388,6 +456,7 @@
                                 const quantity = row['Quantity'] || row['Shares'] || '0';
                                 const price = row['Price'] || row['Unit Price'] || '0';
                                 const amount = row['Amount'] || row['Net Amount'] || '0';
+                                const account = row['Account Number'] || row['Account'] || row['Account Name'] || 'Unknown';
 
                                 return {
                                     date: date,
@@ -396,7 +465,8 @@
                                     description: description,
                                     quantity: parseFloat(quantity.toString().replace(/,/g, '')) || 0,
                                     price: parseFloat(price.toString().replace(/[\$,]/g, '')) || 0,
-                                    amount: parseFloat(amount.toString().replace(/[\$,]/g, '')) || 0
+                                    amount: parseFloat(amount.toString().replace(/[\$,]/g, '')) || 0,
+                                    account: account
                                 };
                             })
                             .filter(t => t.date && t.action);
@@ -404,12 +474,12 @@
                         // Merge with existing transactions and remove duplicates
                         portfolioData.transactions = [...portfolioData.transactions, ...newTransactions];
                         
-                        // Remove duplicates based on date, action, symbol, and amount
+                        // Remove duplicates based on date, action, symbol, amount, and account
                         const uniqueTransactions = [];
                         const seen = new Set();
                         
                         portfolioData.transactions.forEach(t => {
-                            const key = `${t.date}-${t.action}-${t.symbol}-${t.amount}`;
+                            const key = `${t.date}-${t.action}-${t.symbol}-${t.amount}-${t.account}`;
                             if (!seen.has(key)) {
                                 seen.add(key);
                                 uniqueTransactions.push(t);
@@ -449,26 +519,52 @@
             const totalSales = sales.reduce((sum, t) => sum + Math.abs(t.amount), 0);
             const netActivity = totalPurchases - totalSales;
 
+            // Calculate account-specific data
+            const accounts = {};
+            portfolioData.transactions.forEach(t => {
+                if (!accounts[t.account]) {
+                    accounts[t.account] = {
+                        purchases: [],
+                        sales: [],
+                        symbols: new Set()
+                    };
+                }
+                if (purchases.includes(t)) {
+                    accounts[t.account].purchases.push(t);
+                } else if (sales.includes(t)) {
+                    accounts[t.account].sales.push(t);
+                }
+                if (t.symbol) {
+                    accounts[t.account].symbols.add(t.symbol);
+                }
+            });
+
+            portfolioData.accounts = accounts;
+
             // Update stats
-            document.getElementById('current-value').textContent = `$${portfolioData.value2025.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            document.getElementById('current-value').textContent = `${portfolioData.value2025.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
             
             const change = portfolioData.value2025 - portfolioData.value2024;
             const changePercent = portfolioData.value2024 > 0 ? ((change / portfolioData.value2024) * 100) : 0;
-            document.getElementById('year-change').textContent = `${change >= 0 ? '+' : ''}$${change.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})} (${changePercent.toFixed(2)}%)`;
+            document.getElementById('year-change').textContent = `${change >= 0 ? '+' : ''}${change.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})} (${changePercent.toFixed(2)}%)`;
 
-            document.getElementById('total-purchases').textContent = `$${totalPurchases.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            document.getElementById('total-purchases').textContent = `${totalPurchases.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
             document.getElementById('purchase-count').textContent = `${purchases.length} transactions`;
 
-            document.getElementById('total-sales').textContent = `$${totalSales.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            document.getElementById('total-sales').textContent = `${totalSales.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
             document.getElementById('sale-count').textContent = `${sales.length} transactions`;
 
-            document.getElementById('net-activity').textContent = `$${Math.abs(netActivity).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            document.getElementById('net-activity').textContent = `${Math.abs(netActivity).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
             document.getElementById('activity-type').textContent = netActivity >= 0 ? 'Net Invested' : 'Net Withdrawn';
 
-            // Create charts
+            // Create charts and tables
             createGrowthChart();
+            createAccountBreakdown(accounts);
+            createHoldingsChart(purchases, sales);
+            createSymbolActivityChart(purchases, sales);
             createTransactionChart(purchases, sales);
             createTransactionTable();
+            populateFilters();
         }
 
         function createGrowthChart() {
@@ -559,7 +655,24 @@
                             beginAtZero: true,
                             ticks: {
                                 callback: function(value) {
-                                    return '$' + value.toLocaleString();
+                                    return '
+
+        function showLoading(show) {
+            document.getElementById('loading').style.display = show ? 'block' : 'none';
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error-message');
+            errorDiv.className = 'error';
+            errorDiv.textContent = message;
+            setTimeout(() => {
+                errorDiv.textContent = '';
+                errorDiv.className = '';
+            }, 5000);
+        }
+    </script>
+</body>
+</html> + value.toLocaleString();
                                 }
                             }
                         }
@@ -568,22 +681,273 @@
             });
         }
 
-        function createTransactionTable() {
+        function createAccountBreakdown(accounts) {
+            const container = document.getElementById('account-breakdown');
+            container.innerHTML = '';
+
+            Object.keys(accounts).forEach(accountName => {
+                const acc = accounts[accountName];
+                const totalPurchases = acc.purchases.reduce((sum, t) => sum + Math.abs(t.amount), 0);
+                const totalSales = acc.sales.reduce((sum, t) => sum + Math.abs(t.amount), 0);
+                const netActivity = totalPurchases - totalSales;
+
+                const card = document.createElement('div');
+                card.className = 'account-card';
+                card.innerHTML = `
+                    <h3>Account: ${accountName}</h3>
+                    <div class="account-stats">
+                        <div class="account-stat">
+                            <div class="account-stat-label">Total Purchases</div>
+                            <div class="account-stat-value" style="color: #38a169;">${totalPurchases.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                        </div>
+                        <div class="account-stat">
+                            <div class="account-stat-label">Total Sales</div>
+                            <div class="account-stat-value" style="color: #e53e3e;">${totalSales.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                        </div>
+                        <div class="account-stat">
+                            <div class="account-stat-label">Net Activity</div>
+                            <div class="account-stat-value">${netActivity >= 0 ? '+' : ''}${netActivity.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                        </div>
+                        <div class="account-stat">
+                            <div class="account-stat-label">Unique Symbols</div>
+                            <div class="account-stat-value">${acc.symbols.size}</div>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function createHoldingsChart(purchases, sales) {
+            const ctx = document.getElementById('holdingsChart');
+            if (window.holdingsChart) window.holdingsChart.destroy();
+
+            // Aggregate by symbol
+            const symbolData = {};
+            
+            purchases.forEach(t => {
+                if (t.symbol) {
+                    if (!symbolData[t.symbol]) {
+                        symbolData[t.symbol] = { purchases: 0, sales: 0 };
+                    }
+                    symbolData[t.symbol].purchases += Math.abs(t.amount);
+                }
+            });
+
+            sales.forEach(t => {
+                if (t.symbol) {
+                    if (!symbolData[t.symbol]) {
+                        symbolData[t.symbol] = { purchases: 0, sales: 0 };
+                    }
+                    symbolData[t.symbol].sales += Math.abs(t.amount);
+                }
+            });
+
+            // Calculate net and sort by total activity
+            const symbols = Object.keys(symbolData)
+                .map(sym => ({
+                    symbol: sym,
+                    purchases: symbolData[sym].purchases,
+                    sales: symbolData[sym].sales,
+                    net: symbolData[sym].purchases - symbolData[sym].sales,
+                    total: symbolData[sym].purchases + symbolData[sym].sales
+                }))
+                .sort((a, b) => b.total - a.total)
+                .slice(0, 15); // Top 15 holdings
+
+            window.holdingsChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: symbols.map(s => s.symbol),
+                    datasets: [{
+                        label: 'Purchases',
+                        data: symbols.map(s => s.purchases),
+                        backgroundColor: 'rgba(56, 161, 105, 0.8)'
+                    }, {
+                        label: 'Sales',
+                        data: symbols.map(s => s.sales),
+                        backgroundColor: 'rgba(229, 62, 62, 0.8)'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return '
+
+        function showLoading(show) {
+            document.getElementById('loading').style.display = show ? 'block' : 'none';
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error-message');
+            errorDiv.className = 'error';
+            errorDiv.textContent = message;
+            setTimeout(() => {
+                errorDiv.textContent = '';
+                errorDiv.className = '';
+            }, 5000);
+        }
+    </script>
+</body>
+</html> + value.toLocaleString();
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function createSymbolActivityChart(purchases, sales) {
+            const ctx = document.getElementById('symbolActivityChart');
+            if (window.symbolActivityChart) window.symbolActivityChart.destroy();
+
+            // Aggregate by symbol
+            const symbolData = {};
+            
+            [...purchases, ...sales].forEach(t => {
+                if (t.symbol) {
+                    if (!symbolData[t.symbol]) {
+                        symbolData[t.symbol] = { purchases: 0, sales: 0, net: 0 };
+                    }
+                    if (purchases.includes(t)) {
+                        symbolData[t.symbol].purchases += Math.abs(t.amount);
+                    } else {
+                        symbolData[t.symbol].sales += Math.abs(t.amount);
+                    }
+                }
+            });
+
+            // Calculate net position
+            Object.keys(symbolData).forEach(sym => {
+                symbolData[sym].net = symbolData[sym].purchases - symbolData[sym].sales;
+            });
+
+            // Sort by net position
+            const symbols = Object.keys(symbolData)
+                .map(sym => ({
+                    symbol: sym,
+                    net: symbolData[sym].net
+                }))
+                .sort((a, b) => b.net - a.net)
+                .slice(0, 15);
+
+            window.symbolActivityChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: symbols.map(s => s.symbol),
+                    datasets: [{
+                        label: 'Net Position (Purchases - Sales)',
+                        data: symbols.map(s => s.net),
+                        backgroundColor: symbols.map(s => s.net >= 0 ? 'rgba(56, 161, 105, 0.8)' : 'rgba(229, 62, 62, 0.8)')
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            ticks: {
+                                callback: function(value) {
+                                    return '
+
+        function showLoading(show) {
+            document.getElementById('loading').style.display = show ? 'block' : 'none';
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error-message');
+            errorDiv.className = 'error';
+            errorDiv.textContent = message;
+            setTimeout(() => {
+                errorDiv.textContent = '';
+                errorDiv.className = '';
+            }, 5000);
+        }
+    </script>
+</body>
+</html> + value.toLocaleString();
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: true
+                        }
+                    }
+                }
+            });
+        }
+
+        function populateFilters() {
+            const accountFilter = document.getElementById('account-filter');
+            const symbolFilter = document.getElementById('symbol-filter');
+
+            // Clear existing options (except "All")
+            accountFilter.innerHTML = '<option value="all">All Accounts</option>';
+            symbolFilter.innerHTML = '<option value="all">All Symbols</option>';
+
+            // Get unique accounts
+            const accounts = new Set(portfolioData.transactions.map(t => t.account));
+            accounts.forEach(acc => {
+                const option = document.createElement('option');
+                option.value = acc;
+                option.textContent = acc;
+                accountFilter.appendChild(option);
+            });
+
+            // Get unique symbols
+            const symbols = new Set(portfolioData.transactions.map(t => t.symbol).filter(s => s));
+            Array.from(symbols).sort().forEach(sym => {
+                const option = document.createElement('option');
+                option.value = sym;
+                option.textContent = sym;
+                symbolFilter.appendChild(option);
+            });
+
+            // Add event listeners
+            accountFilter.addEventListener('change', filterTransactions);
+            symbolFilter.addEventListener('change', filterTransactions);
+        }
+
+        function filterTransactions() {
+            const accountFilter = document.getElementById('account-filter').value;
+            const symbolFilter = document.getElementById('symbol-filter').value;
+
+            let filtered = portfolioData.transactions;
+
+            if (accountFilter !== 'all') {
+                filtered = filtered.filter(t => t.account === accountFilter);
+            }
+
+            if (symbolFilter !== 'all') {
+                filtered = filtered.filter(t => t.symbol === symbolFilter);
+            }
+
+            createTransactionTable(filtered);
+        }
+
+        function createTransactionTable(transactions = portfolioData.transactions) {
             const tbody = document.getElementById('transactions-body');
             tbody.innerHTML = '';
 
-            portfolioData.transactions.slice().reverse().forEach(t => {
+            transactions.slice().reverse().forEach(t => {
                 const row = tbody.insertRow();
                 const isBuy = t.action.toLowerCase().includes('buy') || t.action.toLowerCase().includes('purchase');
                 
                 row.innerHTML = `
                     <td>${new Date(t.date).toLocaleDateString('en-US')}</td>
+                    <td>${t.account}</td>
                     <td class="${isBuy ? 'buy' : 'sell'}">${t.action}</td>
                     <td><strong>${t.symbol || '-'}</strong></td>
                     <td>${t.description}</td>
                     <td>${t.quantity || '-'}</td>
-                    <td>$${t.price > 0 ? t.price.toFixed(2) : '-'}</td>
-                    <td class="${isBuy ? 'buy' : 'sell'}">$${Math.abs(t.amount).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td>${t.price > 0 ? t.price.toFixed(2) : '-'}</td>
+                    <td class="${isBuy ? 'buy' : 'sell'}">${Math.abs(t.amount).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                 `;
             });
         }
