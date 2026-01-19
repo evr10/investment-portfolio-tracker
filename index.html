@@ -188,26 +188,26 @@
             
             <div class="file-input-wrapper">
                 <label for="pdf2024">
-                    📄 2024 Statement (PDF)
+                    📄 2024 Statements (PDF)
                 </label>
-                <input type="file" id="pdf2024" accept=".pdf">
-                <span class="file-name" id="pdf2024-name">No file chosen</span>
+                <input type="file" id="pdf2024" accept=".pdf" multiple>
+                <span class="file-name" id="pdf2024-name">No files chosen</span>
             </div>
 
             <div class="file-input-wrapper">
                 <label for="pdf2025">
-                    📄 2025 Statement (PDF)
+                    📄 2025 Statements (PDF)
                 </label>
-                <input type="file" id="pdf2025" accept=".pdf">
-                <span class="file-name" id="pdf2025-name">No file chosen</span>
+                <input type="file" id="pdf2025" accept=".pdf" multiple>
+                <span class="file-name" id="pdf2025-name">No files chosen</span>
             </div>
 
             <div class="file-input-wrapper">
                 <label for="csvTransactions">
-                    📊 Transactions (CSV)
+                    📊 Transaction CSVs (All Quarters)
                 </label>
-                <input type="file" id="csvTransactions" accept=".csv">
-                <span class="file-name" id="csv-name">No file chosen</span>
+                <input type="file" id="csvTransactions" accept=".csv" multiple>
+                <span class="file-name" id="csv-name">No files chosen</span>
             </div>
         </div>
 
@@ -282,19 +282,31 @@
         };
 
         // File input handlers
-        document.getElementById('pdf2024').addEventListener('change', function(e) {
-            document.getElementById('pdf2024-name').textContent = e.target.files[0]?.name || 'No file chosen';
-            if (e.target.files[0]) processPDF(e.target.files[0], 2024);
+        document.getElementById('pdf2024').addEventListener('change', async function(e) {
+            const files = Array.from(e.target.files);
+            document.getElementById('pdf2024-name').textContent = files.length > 0 ? `${files.length} file(s) selected` : 'No files chosen';
+            
+            for (const file of files) {
+                await processPDF(file, 2024);
+            }
         });
 
-        document.getElementById('pdf2025').addEventListener('change', function(e) {
-            document.getElementById('pdf2025-name').textContent = e.target.files[0]?.name || 'No file chosen';
-            if (e.target.files[0]) processPDF(e.target.files[0], 2025);
+        document.getElementById('pdf2025').addEventListener('change', async function(e) {
+            const files = Array.from(e.target.files);
+            document.getElementById('pdf2025-name').textContent = files.length > 0 ? `${files.length} file(s) selected` : 'No files chosen';
+            
+            for (const file of files) {
+                await processPDF(file, 2025);
+            }
         });
 
-        document.getElementById('csvTransactions').addEventListener('change', function(e) {
-            document.getElementById('csv-name').textContent = e.target.files[0]?.name || 'No file chosen';
-            if (e.target.files[0]) processCSV(e.target.files[0]);
+        document.getElementById('csvTransactions').addEventListener('change', async function(e) {
+            const files = Array.from(e.target.files);
+            document.getElementById('csv-name').textContent = files.length > 0 ? `${files.length} file(s) selected` : 'No files chosen';
+            
+            for (const file of files) {
+                await processCSV(file);
+            }
         });
 
         async function processPDF(file, year) {
@@ -310,24 +322,50 @@
                     text += content.items.map(item => item.str).join(' ');
                 }
 
-                // Extract portfolio value (looking for common patterns in Fidelity statements)
-                const valueMatch = text.match(/Total\s+Account\s+Value[:\s]+\$?([\d,]+\.?\d*)/i) ||
-                                 text.match(/Portfolio\s+Value[:\s]+\$?([\d,]+\.?\d*)/i) ||
-                                 text.match(/Account\s+Balance[:\s]+\$?([\d,]+\.?\d*)/i);
+                // Try multiple patterns for Fidelity statements
+                // Pattern 1: "Your Net Portfolio Value: $XXX,XXX.XX" (from first page summary)
+                let valueMatch = text.match(/Your\s+Net\s+Portfolio\s+Value[:\s]+\$?([\d,]+\.?\d*)/i);
                 
+                // Pattern 2: "Ending Net Portfolio Value $XXX,XXX.XX" (from portfolio summary)
+                if (!valueMatch) {
+                    valueMatch = text.match(/Ending\s+Net\s+Portfolio\s+Value[:\s]+\$?([\d,]+\.?\d*)/i);
+                }
+                
+                // Pattern 3: Individual account values "Ending Account Value $XXX,XXX.XX"
+                if (!valueMatch) {
+                    const accountMatches = text.match(/Ending\s+(?:Net\s+)?Account\s+Value[:\s]+\$?([\d,]+\.?\d*)/gi);
+                    if (accountMatches && accountMatches.length > 0) {
+                        let totalValue = 0;
+                        accountMatches.forEach(match => {
+                            const val = match.match(/\$?([\d,]+\.?\d*)/);
+                            if (val) {
+                                totalValue += parseFloat(val[1].replace(/,/g, ''));
+                            }
+                        });
+                        if (totalValue > 0) {
+                            if (year === 2024) {
+                                portfolioData.value2024 += totalValue;
+                            } else {
+                                portfolioData.value2025 += totalValue;
+                            }
+                        }
+                    }
+                }
+                
+                // Use the first match found
                 if (valueMatch) {
                     const value = parseFloat(valueMatch[1].replace(/,/g, ''));
                     if (year === 2024) {
-                        portfolioData.value2024 = value;
+                        portfolioData.value2024 += value;
                     } else {
-                        portfolioData.value2025 = value;
+                        portfolioData.value2025 += value;
                     }
                 }
 
                 updateDashboard();
                 showLoading(false);
             } catch (error) {
-                showError(`Error processing ${year} PDF: ${error.message}`);
+                showError(`Error processing ${year} PDF (${file.name}): ${error.message}`);
                 showLoading(false);
             }
         }
@@ -340,7 +378,7 @@
                 skipEmptyLines: true,
                 complete: function(results) {
                     try {
-                        portfolioData.transactions = results.data
+                        const newTransactions = results.data
                             .map(row => {
                                 // Normalize column names (Fidelity CSV format may vary)
                                 const date = row['Run Date'] || row['Date'] || row['Trade Date'] || '';
@@ -361,13 +399,29 @@
                                     amount: parseFloat(amount.toString().replace(/[\$,]/g, '')) || 0
                                 };
                             })
-                            .filter(t => t.date && t.action)
-                            .sort((a, b) => new Date(a.date) - new Date(b.date));
+                            .filter(t => t.date && t.action);
+
+                        // Merge with existing transactions and remove duplicates
+                        portfolioData.transactions = [...portfolioData.transactions, ...newTransactions];
+                        
+                        // Remove duplicates based on date, action, symbol, and amount
+                        const uniqueTransactions = [];
+                        const seen = new Set();
+                        
+                        portfolioData.transactions.forEach(t => {
+                            const key = `${t.date}-${t.action}-${t.symbol}-${t.amount}`;
+                            if (!seen.has(key)) {
+                                seen.add(key);
+                                uniqueTransactions.push(t);
+                            }
+                        });
+                        
+                        portfolioData.transactions = uniqueTransactions.sort((a, b) => new Date(a.date) - new Date(b.date));
 
                         updateDashboard();
                         showLoading(false);
                     } catch (error) {
-                        showError(`Error processing CSV: ${error.message}`);
+                        showError(`Error processing CSV (${file.name}): ${error.message}`);
                         showLoading(false);
                     }
                 }
