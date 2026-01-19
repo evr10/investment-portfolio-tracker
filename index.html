@@ -340,107 +340,111 @@
     </div>
 
     <script>
-        // Set pdf.js worker with error handling
-        try {
-            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-        } catch (error) {
-            console.error('PDF.js initialization error:', error);
-        }
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-        let portfolioData = {
+        var portfolioData = {
             value2024: 0,
             value2025: 0,
             transactions: [],
-            accounts: {} // Store account-specific data
+            accounts: {}
         };
 
-        // File input handlers
-        document.getElementById('pdf2024').addEventListener('change', async function(e) {
-            const files = Array.from(e.target.files);
-            document.getElementById('pdf2024-name').textContent = files.length > 0 ? `${files.length} file(s) selected` : 'No files chosen';
+        document.getElementById('pdf2024').addEventListener('change', function(e) {
+            var files = Array.from(e.target.files);
+            document.getElementById('pdf2024-name').textContent = files.length > 0 ? files.length + ' file(s) selected' : 'No files chosen';
             
-            for (const file of files) {
-                await processPDF(file, 2024);
-            }
+            files.forEach(function(file) {
+                processPDF(file, 2024);
+            });
         });
 
-        document.getElementById('pdf2025').addEventListener('change', async function(e) {
-            const files = Array.from(e.target.files);
-            document.getElementById('pdf2025-name').textContent = files.length > 0 ? `${files.length} file(s) selected` : 'No files chosen';
+        document.getElementById('pdf2025').addEventListener('change', function(e) {
+            var files = Array.from(e.target.files);
+            document.getElementById('pdf2025-name').textContent = files.length > 0 ? files.length + ' file(s) selected' : 'No files chosen';
             
-            for (const file of files) {
-                await processPDF(file, 2025);
-            }
+            files.forEach(function(file) {
+                processPDF(file, 2025);
+            });
         });
 
-        document.getElementById('csvTransactions').addEventListener('change', async function(e) {
-            const files = Array.from(e.target.files);
-            document.getElementById('csv-name').textContent = files.length > 0 ? `${files.length} file(s) selected` : 'No files chosen';
+        document.getElementById('csvTransactions').addEventListener('change', function(e) {
+            var files = Array.from(e.target.files);
+            document.getElementById('csv-name').textContent = files.length > 0 ? files.length + ' file(s) selected' : 'No files chosen';
             
-            for (const file of files) {
-                await processCSV(file);
-            }
+            files.forEach(function(file) {
+                processCSV(file);
+            });
         });
 
-        async function processPDF(file, year) {
-            try {
-                showLoading(true);
-                const arrayBuffer = await file.arrayBuffer();
-                const pdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
+        function processPDF(file, year) {
+            showLoading(true);
+            
+            var reader = new FileReader();
+            reader.onload = function(e) {
+                var arrayBuffer = e.target.result;
                 
-                let text = '';
-                for (let i = 1; i <= pdf.numPages; i++) {
-                    const page = await pdf.getPage(i);
-                    const content = await page.getTextContent();
-                    text += content.items.map(item => item.str).join(' ');
-                }
-
-                // Try multiple patterns for Fidelity statements
-                // Pattern 1: "Your Net Portfolio Value: $XXX,XXX.XX" (from first page summary)
-                let valueMatch = text.match(/Your\s+Net\s+Portfolio\s+Value[:\s]+\$?([\d,]+\.?\d*)/i);
-                
-                // Pattern 2: "Ending Net Portfolio Value $XXX,XXX.XX" (from portfolio summary)
-                if (!valueMatch) {
-                    valueMatch = text.match(/Ending\s+Net\s+Portfolio\s+Value[:\s]+\$?([\d,]+\.?\d*)/i);
-                }
-                
-                // Pattern 3: Individual account values "Ending Account Value $XXX,XXX.XX"
-                if (!valueMatch) {
-                    const accountMatches = text.match(/Ending\s+(?:Net\s+)?Account\s+Value[:\s]+\$?([\d,]+\.?\d*)/gi);
-                    if (accountMatches && accountMatches.length > 0) {
-                        let totalValue = 0;
-                        accountMatches.forEach(match => {
-                            const val = match.match(/\$?([\d,]+\.?\d*)/);
-                            if (val) {
-                                totalValue += parseFloat(val[1].replace(/,/g, ''));
-                            }
-                        });
-                        if (totalValue > 0) {
-                            if (year === 2024) {
-                                portfolioData.value2024 += totalValue;
-                            } else {
-                                portfolioData.value2025 += totalValue;
+                pdfjsLib.getDocument({data: arrayBuffer}).promise.then(function(pdf) {
+                    var numPages = pdf.numPages;
+                    var textPromises = [];
+                    
+                    for (var i = 1; i <= numPages; i++) {
+                        textPromises.push(
+                            pdf.getPage(i).then(function(page) {
+                                return page.getTextContent().then(function(content) {
+                                    return content.items.map(function(item) { return item.str; }).join(' ');
+                                });
+                            })
+                        );
+                    }
+                    
+                    Promise.all(textPromises).then(function(texts) {
+                        var text = texts.join(' ');
+                        
+                        var valueMatch = text.match(/Your\s+Net\s+Portfolio\s+Value[:\s]+\$?([\d,]+\.?\d*)/i);
+                        
+                        if (!valueMatch) {
+                            valueMatch = text.match(/Ending\s+Net\s+Portfolio\s+Value[:\s]+\$?([\d,]+\.?\d*)/i);
+                        }
+                        
+                        if (!valueMatch) {
+                            var accountMatches = text.match(/Ending\s+(?:Net\s+)?Account\s+Value[:\s]+\$?([\d,]+\.?\d*)/gi);
+                            if (accountMatches && accountMatches.length > 0) {
+                                var totalValue = 0;
+                                accountMatches.forEach(function(match) {
+                                    var val = match.match(/\$?([\d,]+\.?\d*)/);
+                                    if (val) {
+                                        totalValue += parseFloat(val[1].replace(/,/g, ''));
+                                    }
+                                });
+                                if (totalValue > 0) {
+                                    if (year === 2024) {
+                                        portfolioData.value2024 += totalValue;
+                                    } else {
+                                        portfolioData.value2025 += totalValue;
+                                    }
+                                }
                             }
                         }
-                    }
-                }
-                
-                // Use the first match found
-                if (valueMatch) {
-                    const value = parseFloat(valueMatch[1].replace(/,/g, ''));
-                    if (year === 2024) {
-                        portfolioData.value2024 += value;
-                    } else {
-                        portfolioData.value2025 += value;
-                    }
-                }
+                        
+                        if (valueMatch) {
+                            var value = parseFloat(valueMatch[1].replace(/,/g, ''));
+                            if (year === 2024) {
+                                portfolioData.value2024 += value;
+                            } else {
+                                portfolioData.value2025 += value;
+                            }
+                        }
 
-                updateDashboard();
-                showLoading(false);
-            } catch (error) {
-                showError(`Error processing ${year} PDF (${file.name}): ${error.message}`);
-                showLoading(false);
-            }
+                        updateDashboard();
+                        showLoading(false);
+                    });
+                }).catch(function(error) {
+                    showError('Error processing ' + year + ' PDF (' + file.name + '): ' + error.message);
+                    showLoading(false);
+                });
+            };
+            
+            reader.readAsArrayBuffer(file);
         }
 
         function processCSV(file) {
@@ -451,17 +455,16 @@
                 skipEmptyLines: true,
                 complete: function(results) {
                     try {
-                        const newTransactions = results.data
-                            .map(row => {
-                                // Normalize column names (Fidelity CSV format may vary)
-                                const date = row['Run Date'] || row['Date'] || row['Trade Date'] || '';
-                                const action = row['Action'] || row['Type'] || row['Transaction Type'] || '';
-                                const symbol = row['Symbol'] || row['Ticker'] || '';
-                                const description = row['Description'] || row['Security Description'] || '';
-                                const quantity = row['Quantity'] || row['Shares'] || '0';
-                                const price = row['Price'] || row['Unit Price'] || '0';
-                                const amount = row['Amount'] || row['Net Amount'] || '0';
-                                const account = row['Account Number'] || row['Account'] || row['Account Name'] || 'Unknown';
+                        var newTransactions = results.data
+                            .map(function(row) {
+                                var date = row['Run Date'] || row['Date'] || row['Trade Date'] || '';
+                                var action = row['Action'] || row['Type'] || row['Transaction Type'] || '';
+                                var symbol = row['Symbol'] || row['Ticker'] || '';
+                                var description = row['Description'] || row['Security Description'] || '';
+                                var quantity = row['Quantity'] || row['Shares'] || '0';
+                                var price = row['Price'] || row['Unit Price'] || '0';
+                                var amount = row['Amount'] || row['Net Amount'] || '0';
+                                var account = row['Account Number'] || row['Account'] || row['Account Name'] || 'Unknown';
 
                                 return {
                                     date: date,
@@ -474,29 +477,29 @@
                                     account: account
                                 };
                             })
-                            .filter(t => t.date && t.action);
+                            .filter(function(t) { return t.date && t.action; });
 
-                        // Merge with existing transactions and remove duplicates
-                        portfolioData.transactions = [...portfolioData.transactions, ...newTransactions];
+                        portfolioData.transactions = portfolioData.transactions.concat(newTransactions);
                         
-                        // Remove duplicates based on date, action, symbol, amount, and account
-                        const uniqueTransactions = [];
-                        const seen = new Set();
+                        var uniqueTransactions = [];
+                        var seen = new Set();
                         
-                        portfolioData.transactions.forEach(t => {
-                            const key = `${t.date}-${t.action}-${t.symbol}-${t.amount}-${t.account}`;
+                        portfolioData.transactions.forEach(function(t) {
+                            var key = t.date + '-' + t.action + '-' + t.symbol + '-' + t.amount + '-' + t.account;
                             if (!seen.has(key)) {
                                 seen.add(key);
                                 uniqueTransactions.push(t);
                             }
                         });
                         
-                        portfolioData.transactions = uniqueTransactions.sort((a, b) => new Date(a.date) - new Date(b.date));
+                        portfolioData.transactions = uniqueTransactions.sort(function(a, b) {
+                            return new Date(a.date) - new Date(b.date);
+                        });
 
                         updateDashboard();
                         showLoading(false);
                     } catch (error) {
-                        showError(`Error processing CSV (${file.name}): ${error.message}`);
+                        showError('Error processing CSV (' + file.name + '): ' + error.message);
                         showLoading(false);
                     }
                 }
@@ -510,23 +513,20 @@
 
             document.getElementById('dashboard').style.display = 'block';
 
-            // Calculate statistics
-            const purchases = portfolioData.transactions.filter(t => 
-                t.action.toLowerCase().includes('buy') || 
-                t.action.toLowerCase().includes('purchase')
-            );
-            const sales = portfolioData.transactions.filter(t => 
-                t.action.toLowerCase().includes('sell') || 
-                t.action.toLowerCase().includes('sale')
-            );
+            var purchases = portfolioData.transactions.filter(function(t) {
+                return t.action.toLowerCase().includes('buy') || t.action.toLowerCase().includes('purchase');
+            });
+            
+            var sales = portfolioData.transactions.filter(function(t) {
+                return t.action.toLowerCase().includes('sell') || t.action.toLowerCase().includes('sale');
+            });
 
-            const totalPurchases = purchases.reduce((sum, t) => sum + Math.abs(t.amount), 0);
-            const totalSales = sales.reduce((sum, t) => sum + Math.abs(t.amount), 0);
-            const netActivity = totalPurchases - totalSales;
+            var totalPurchases = purchases.reduce(function(sum, t) { return sum + Math.abs(t.amount); }, 0);
+            var totalSales = sales.reduce(function(sum, t) { return sum + Math.abs(t.amount); }, 0);
+            var netActivity = totalPurchases - totalSales;
 
-            // Calculate account-specific data
-            const accounts = {};
-            portfolioData.transactions.forEach(t => {
+            var accounts = {};
+            portfolioData.transactions.forEach(function(t) {
                 if (!accounts[t.account]) {
                     accounts[t.account] = {
                         purchases: [],
@@ -534,9 +534,9 @@
                         symbols: new Set()
                     };
                 }
-                if (purchases.includes(t)) {
+                if (t.action.toLowerCase().includes('buy') || t.action.toLowerCase().includes('purchase')) {
                     accounts[t.account].purchases.push(t);
-                } else if (sales.includes(t)) {
+                } else if (t.action.toLowerCase().includes('sell') || t.action.toLowerCase().includes('sale')) {
                     accounts[t.account].sales.push(t);
                 }
                 if (t.symbol) {
@@ -546,23 +546,21 @@
 
             portfolioData.accounts = accounts;
 
-            // Update stats
-            document.getElementById('current-value').textContent = `${portfolioData.value2025.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            document.getElementById('current-value').textContent = '$' + portfolioData.value2025.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
             
-            const change = portfolioData.value2025 - portfolioData.value2024;
-            const changePercent = portfolioData.value2024 > 0 ? ((change / portfolioData.value2024) * 100) : 0;
-            document.getElementById('year-change').textContent = `${change >= 0 ? '+' : ''}${change.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})} (${changePercent.toFixed(2)}%)`;
+            var change = portfolioData.value2025 - portfolioData.value2024;
+            var changePercent = portfolioData.value2024 > 0 ? ((change / portfolioData.value2024) * 100) : 0;
+            document.getElementById('year-change').textContent = (change >= 0 ? '+' : '') + '$' + change.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' (' + changePercent.toFixed(2) + '%)';
 
-            document.getElementById('total-purchases').textContent = `${totalPurchases.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-            document.getElementById('purchase-count').textContent = `${purchases.length} transactions`;
+            document.getElementById('total-purchases').textContent = '$' + totalPurchases.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            document.getElementById('purchase-count').textContent = purchases.length + ' transactions';
 
-            document.getElementById('total-sales').textContent = `${totalSales.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-            document.getElementById('sale-count').textContent = `${sales.length} transactions`;
+            document.getElementById('total-sales').textContent = '$' + totalSales.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            document.getElementById('sale-count').textContent = sales.length + ' transactions';
 
-            document.getElementById('net-activity').textContent = `${Math.abs(netActivity).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            document.getElementById('net-activity').textContent = '$' + Math.abs(netActivity).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
             document.getElementById('activity-type').textContent = netActivity >= 0 ? 'Net Invested' : 'Net Withdrawn';
 
-            // Create charts and tables
             createGrowthChart();
             createAccountBreakdown(accounts);
             createHoldingsChart(purchases, sales);
@@ -573,7 +571,7 @@
         }
 
         function createGrowthChart() {
-            const ctx = document.getElementById('growthChart');
+            var ctx = document.getElementById('growthChart');
             if (window.growthChart) window.growthChart.destroy();
 
             window.growthChart = new Chart(ctx, {
@@ -612,125 +610,61 @@
             });
         }
 
-        function createTransactionChart(purchases, sales) {
-            const ctx = document.getElementById('transactionChart');
-            if (window.transactionChart) window.transactionChart.destroy();
-
-            // Group by month
-            const monthlyData = {};
-            
-            [...purchases, ...sales].forEach(t => {
-                const date = new Date(t.date);
-                const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-                
-                if (!monthlyData[monthKey]) {
-                    monthlyData[monthKey] = { purchases: 0, sales: 0 };
-                }
-                
-                if (purchases.includes(t)) {
-                    monthlyData[monthKey].purchases += Math.abs(t.amount);
-                } else {
-                    monthlyData[monthKey].sales += Math.abs(t.amount);
-                }
-            });
-
-            const sortedMonths = Object.keys(monthlyData).sort();
-            
-            window.transactionChart = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: sortedMonths.map(m => {
-                        const [year, month] = m.split('-');
-                        return new Date(year, month - 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-                    }),
-                    datasets: [{
-                        label: 'Purchases',
-                        data: sortedMonths.map(m => monthlyData[m].purchases),
-                        backgroundColor: 'rgba(56, 161, 105, 0.8)'
-                    }, {
-                        label: 'Sales',
-                        data: sortedMonths.map(m => monthlyData[m].sales),
-                        backgroundColor: 'rgba(229, 62, 62, 0.8)'
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: {
-                                callback: function(value) {
-                                    return '
-
-        function showLoading(show) {
-            document.getElementById('loading').style.display = show ? 'block' : 'none';
-        }
-
-        function showError(message) {
-            const errorDiv = document.getElementById('error-message');
-            errorDiv.className = 'error';
-            errorDiv.textContent = message;
-            setTimeout(() => {
-                errorDiv.textContent = '';
-                errorDiv.className = '';
-            }, 5000);
-        }
-    </script>
-</body>
-</html> + value.toLocaleString();
-                                }
-                            }
-                        }
-                    }
-                }
-            });
-        }
-
         function createAccountBreakdown(accounts) {
-            const container = document.getElementById('account-breakdown');
+            var container = document.getElementById('account-breakdown');
             container.innerHTML = '';
 
-            Object.keys(accounts).forEach(accountName => {
-                const acc = accounts[accountName];
-                const totalPurchases = acc.purchases.reduce((sum, t) => sum + Math.abs(t.amount), 0);
-                const totalSales = acc.sales.reduce((sum, t) => sum + Math.abs(t.amount), 0);
-                const netActivity = totalPurchases - totalSales;
+            Object.keys(accounts).forEach(function(accountName) {
+                var acc = accounts[accountName];
+                var totalPurchases = acc.purchases.reduce(function(sum, t) { return sum + Math.abs(t.amount); }, 0);
+                var totalSales = acc.sales.reduce(function(sum, t) { return sum + Math.abs(t.amount); }, 0);
+                var netActivity = totalPurchases - totalSales;
 
-                const card = document.createElement('div');
+                var card = document.createElement('div');
                 card.className = 'account-card';
-                card.innerHTML = `
-                    <h3>Account: ${accountName}</h3>
-                    <div class="account-stats">
-                        <div class="account-stat">
-                            <div class="account-stat-label">Total Purchases</div>
-                            <div class="account-stat-value" style="color: #38a169;">${totalPurchases.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
-                        </div>
-                        <div class="account-stat">
-                            <div class="account-stat-label">Total Sales</div>
-                            <div class="account-stat-value" style="color: #e53e3e;">${totalSales.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
-                        </div>
-                        <div class="account-stat">
-                            <div class="account-stat-label">Net Activity</div>
-                            <div class="account-stat-value">${netActivity >= 0 ? '+' : ''}${netActivity.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
-                        </div>
-                        <div class="account-stat">
-                            <div class="account-stat-label">Unique Symbols</div>
-                            <div class="account-stat-value">${acc.symbols.size}</div>
-                        </div>
-                    </div>
-                `;
+                
+                var h3 = document.createElement('h3');
+                h3.textContent = 'Account: ' + accountName;
+                card.appendChild(h3);
+                
+                var statsDiv = document.createElement('div');
+                statsDiv.className = 'account-stats';
+                
+                var purchaseDiv = document.createElement('div');
+                purchaseDiv.className = 'account-stat';
+                purchaseDiv.innerHTML = '<div class="account-stat-label">Total Purchases</div><div class="account-stat-value" style="color: #38a169;">$' + 
+                    totalPurchases.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '</div>';
+                statsDiv.appendChild(purchaseDiv);
+                
+                var salesDiv = document.createElement('div');
+                salesDiv.className = 'account-stat';
+                salesDiv.innerHTML = '<div class="account-stat-label">Total Sales</div><div class="account-stat-value" style="color: #e53e3e;">$' + 
+                    totalSales.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '</div>';
+                statsDiv.appendChild(salesDiv);
+                
+                var netDiv = document.createElement('div');
+                netDiv.className = 'account-stat';
+                netDiv.innerHTML = '<div class="account-stat-label">Net Activity</div><div class="account-stat-value">' + 
+                    (netActivity >= 0 ? '+' : '') + '$' + netActivity.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '</div>';
+                statsDiv.appendChild(netDiv);
+                
+                var symbolsDiv = document.createElement('div');
+                symbolsDiv.className = 'account-stat';
+                symbolsDiv.innerHTML = '<div class="account-stat-label">Unique Symbols</div><div class="account-stat-value">' + acc.symbols.size + '</div>';
+                statsDiv.appendChild(symbolsDiv);
+                
+                card.appendChild(statsDiv);
                 container.appendChild(card);
             });
         }
 
         function createHoldingsChart(purchases, sales) {
-            const ctx = document.getElementById('holdingsChart');
+            var ctx = document.getElementById('holdingsChart');
             if (window.holdingsChart) window.holdingsChart.destroy();
 
-            // Aggregate by symbol
-            const symbolData = {};
+            var symbolData = {};
             
-            purchases.forEach(t => {
+            purchases.forEach(function(t) {
                 if (t.symbol) {
                     if (!symbolData[t.symbol]) {
                         symbolData[t.symbol] = { purchases: 0, sales: 0 };
@@ -739,7 +673,7 @@
                 }
             });
 
-            sales.forEach(t => {
+            sales.forEach(function(t) {
                 if (t.symbol) {
                     if (!symbolData[t.symbol]) {
                         symbolData[t.symbol] = { purchases: 0, sales: 0 };
@@ -748,29 +682,29 @@
                 }
             });
 
-            // Calculate net and sort by total activity
-            const symbols = Object.keys(symbolData)
-                .map(sym => ({
-                    symbol: sym,
-                    purchases: symbolData[sym].purchases,
-                    sales: symbolData[sym].sales,
-                    net: symbolData[sym].purchases - symbolData[sym].sales,
-                    total: symbolData[sym].purchases + symbolData[sym].sales
-                }))
-                .sort((a, b) => b.total - a.total)
-                .slice(0, 15); // Top 15 holdings
+            var symbols = Object.keys(symbolData)
+                .map(function(sym) {
+                    return {
+                        symbol: sym,
+                        purchases: symbolData[sym].purchases,
+                        sales: symbolData[sym].sales,
+                        total: symbolData[sym].purchases + symbolData[sym].sales
+                    };
+                })
+                .sort(function(a, b) { return b.total - a.total; })
+                .slice(0, 15);
 
             window.holdingsChart = new Chart(ctx, {
                 type: 'bar',
                 data: {
-                    labels: symbols.map(s => s.symbol),
+                    labels: symbols.map(function(s) { return s.symbol; }),
                     datasets: [{
                         label: 'Purchases',
-                        data: symbols.map(s => s.purchases),
+                        data: symbols.map(function(s) { return s.purchases; }),
                         backgroundColor: 'rgba(56, 161, 105, 0.8)'
                     }, {
                         label: 'Sales',
-                        data: symbols.map(s => s.sales),
+                        data: symbols.map(function(s) { return s.sales; }),
                         backgroundColor: 'rgba(229, 62, 62, 0.8)'
                     }]
                 },
@@ -781,24 +715,7 @@
                             beginAtZero: true,
                             ticks: {
                                 callback: function(value) {
-                                    return '
-
-        function showLoading(show) {
-            document.getElementById('loading').style.display = show ? 'block' : 'none';
-        }
-
-        function showError(message) {
-            const errorDiv = document.getElementById('error-message');
-            errorDiv.className = 'error';
-            errorDiv.textContent = message;
-            setTimeout(() => {
-                errorDiv.textContent = '';
-                errorDiv.className = '';
-            }, 5000);
-        }
-    </script>
-</body>
-</html> + value.toLocaleString();
+                                    return '$' + value.toLocaleString();
                                 }
                             }
                         }
@@ -808,18 +725,17 @@
         }
 
         function createSymbolActivityChart(purchases, sales) {
-            const ctx = document.getElementById('symbolActivityChart');
+            var ctx = document.getElementById('symbolActivityChart');
             if (window.symbolActivityChart) window.symbolActivityChart.destroy();
 
-            // Aggregate by symbol
-            const symbolData = {};
+            var symbolData = {};
             
-            [...purchases, ...sales].forEach(t => {
+            purchases.concat(sales).forEach(function(t) {
                 if (t.symbol) {
                     if (!symbolData[t.symbol]) {
                         symbolData[t.symbol] = { purchases: 0, sales: 0, net: 0 };
                     }
-                    if (purchases.includes(t)) {
+                    if (t.action.toLowerCase().includes('buy') || t.action.toLowerCase().includes('purchase')) {
                         symbolData[t.symbol].purchases += Math.abs(t.amount);
                     } else {
                         symbolData[t.symbol].sales += Math.abs(t.amount);
@@ -827,28 +743,30 @@
                 }
             });
 
-            // Calculate net position
-            Object.keys(symbolData).forEach(sym => {
+            Object.keys(symbolData).forEach(function(sym) {
                 symbolData[sym].net = symbolData[sym].purchases - symbolData[sym].sales;
             });
 
-            // Sort by net position
-            const symbols = Object.keys(symbolData)
-                .map(sym => ({
-                    symbol: sym,
-                    net: symbolData[sym].net
-                }))
-                .sort((a, b) => b.net - a.net)
+            var symbols = Object.keys(symbolData)
+                .map(function(sym) {
+                    return {
+                        symbol: sym,
+                        net: symbolData[sym].net
+                    };
+                })
+                .sort(function(a, b) { return b.net - a.net; })
                 .slice(0, 15);
 
             window.symbolActivityChart = new Chart(ctx, {
                 type: 'bar',
                 data: {
-                    labels: symbols.map(s => s.symbol),
+                    labels: symbols.map(function(s) { return s.symbol; }),
                     datasets: [{
                         label: 'Net Position (Purchases - Sales)',
-                        data: symbols.map(s => s.net),
-                        backgroundColor: symbols.map(s => s.net >= 0 ? 'rgba(56, 161, 105, 0.8)' : 'rgba(229, 62, 62, 0.8)')
+                        data: symbols.map(function(s) { return s.net; }),
+                        backgroundColor: symbols.map(function(s) {
+                            return s.net >= 0 ? 'rgba(56, 161, 105, 0.8)' : 'rgba(229, 62, 62, 0.8)';
+                        })
                     }]
                 },
                 options: {
@@ -857,119 +775,4 @@
                         y: {
                             ticks: {
                                 callback: function(value) {
-                                    return '
-
-        function showLoading(show) {
-            document.getElementById('loading').style.display = show ? 'block' : 'none';
-        }
-
-        function showError(message) {
-            const errorDiv = document.getElementById('error-message');
-            errorDiv.className = 'error';
-            errorDiv.textContent = message;
-            setTimeout(() => {
-                errorDiv.textContent = '';
-                errorDiv.className = '';
-            }, 5000);
-        }
-    </script>
-</body>
-</html> + value.toLocaleString();
-                                }
-                            }
-                        }
-                    },
-                    plugins: {
-                        legend: {
-                            display: true
-                        }
-                    }
-                }
-            });
-        }
-
-        function populateFilters() {
-            const accountFilter = document.getElementById('account-filter');
-            const symbolFilter = document.getElementById('symbol-filter');
-
-            // Clear existing options (except "All")
-            accountFilter.innerHTML = '<option value="all">All Accounts</option>';
-            symbolFilter.innerHTML = '<option value="all">All Symbols</option>';
-
-            // Get unique accounts
-            const accounts = new Set(portfolioData.transactions.map(t => t.account));
-            accounts.forEach(acc => {
-                const option = document.createElement('option');
-                option.value = acc;
-                option.textContent = acc;
-                accountFilter.appendChild(option);
-            });
-
-            // Get unique symbols
-            const symbols = new Set(portfolioData.transactions.map(t => t.symbol).filter(s => s));
-            Array.from(symbols).sort().forEach(sym => {
-                const option = document.createElement('option');
-                option.value = sym;
-                option.textContent = sym;
-                symbolFilter.appendChild(option);
-            });
-
-            // Add event listeners
-            accountFilter.addEventListener('change', filterTransactions);
-            symbolFilter.addEventListener('change', filterTransactions);
-        }
-
-        function filterTransactions() {
-            const accountFilter = document.getElementById('account-filter').value;
-            const symbolFilter = document.getElementById('symbol-filter').value;
-
-            let filtered = portfolioData.transactions;
-
-            if (accountFilter !== 'all') {
-                filtered = filtered.filter(t => t.account === accountFilter);
-            }
-
-            if (symbolFilter !== 'all') {
-                filtered = filtered.filter(t => t.symbol === symbolFilter);
-            }
-
-            createTransactionTable(filtered);
-        }
-
-        function createTransactionTable(transactions = portfolioData.transactions) {
-            const tbody = document.getElementById('transactions-body');
-            tbody.innerHTML = '';
-
-            transactions.slice().reverse().forEach(t => {
-                const row = tbody.insertRow();
-                const isBuy = t.action.toLowerCase().includes('buy') || t.action.toLowerCase().includes('purchase');
-                
-                row.innerHTML = `
-                    <td>${new Date(t.date).toLocaleDateString('en-US')}</td>
-                    <td>${t.account}</td>
-                    <td class="${isBuy ? 'buy' : 'sell'}">${t.action}</td>
-                    <td><strong>${t.symbol || '-'}</strong></td>
-                    <td>${t.description}</td>
-                    <td>${t.quantity || '-'}</td>
-                    <td>${t.price > 0 ? t.price.toFixed(2) : '-'}</td>
-                    <td class="${isBuy ? 'buy' : 'sell'}">${Math.abs(t.amount).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                `;
-            });
-        }
-
-        function showLoading(show) {
-            document.getElementById('loading').style.display = show ? 'block' : 'none';
-        }
-
-        function showError(message) {
-            const errorDiv = document.getElementById('error-message');
-            errorDiv.className = 'error';
-            errorDiv.textContent = message;
-            setTimeout(() => {
-                errorDiv.textContent = '';
-                errorDiv.className = '';
-            }, 5000);
-        }
-    </script>
-</body>
-</html>
+                                    
