@@ -3,11 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Investment Portfolio Tracker</title>
+    <title>Portfolio Tracker</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
     <style>
+        :root {
+            --bg-primary: #0a0f1a;
+            --bg-secondary: #111827;
+            --bg-card: #1a2332;
+            --bg-hover: #243044;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --accent-green: #10b981;
+            --accent-green-dim: #065f46;
+            --accent-red: #ef4444;
+            --accent-red-dim: #7f1d1d;
+            --accent-blue: #3b82f6;
+            --accent-gold: #f59e0b;
+            --border-color: #2d3748;
+            --font-mono: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
+            --font-sans: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -15,764 +34,1511 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: var(--font-sans);
+            background: var(--bg-primary);
+            color: var(--text-primary);
             min-height: 100vh;
-            padding: 20px;
+            line-height: 1.6;
         }
 
         .container {
             max-width: 1400px;
             margin: 0 auto;
-            background: white;
-            border-radius: 16px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            padding: 40px;
+            padding: 2rem;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 1px solid var(--border-color);
         }
 
         h1 {
-            color: #2d3748;
-            margin-bottom: 10px;
-            font-size: 32px;
+            font-size: 1.75rem;
+            font-weight: 600;
+            letter-spacing: -0.02em;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
         }
 
-        .subtitle {
-            color: #718096;
-            margin-bottom: 30px;
-            font-size: 16px;
+        h1::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            background: var(--accent-green);
+            border-radius: 50%;
+            animation: pulse 2s infinite;
         }
 
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .btn {
+            padding: 0.625rem 1.25rem;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-primary {
+            background: var(--accent-blue);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #2563eb;
+        }
+
+        .btn-secondary {
+            background: var(--bg-card);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-hover);
+        }
+
+        .btn-danger {
+            background: var(--accent-red-dim);
+            color: var(--accent-red);
+        }
+
+        .btn-danger:hover {
+            background: #991b1b;
+        }
+
+        /* Upload Section */
         .upload-section {
-            background: #f7fafc;
-            border: 2px dashed #cbd5e0;
+            background: var(--bg-card);
             border-radius: 12px;
-            padding: 30px;
-            margin-bottom: 30px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            border: 1px dashed var(--border-color);
             text-align: center;
         }
 
-        .file-input-wrapper {
-            display: inline-block;
-            margin: 10px;
+        .upload-section.dragover {
+            border-color: var(--accent-blue);
+            background: rgba(59, 130, 246, 0.1);
         }
 
-        .file-input-wrapper label {
-            display: inline-block;
-            padding: 12px 24px;
-            background: #667eea;
-            color: white;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: background 0.3s;
-            font-weight: 500;
+        .upload-section h2 {
+            font-size: 1.125rem;
+            margin-bottom: 0.5rem;
         }
 
-        .file-input-wrapper label:hover {
-            background: #5a67d8;
+        .upload-section p {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            margin-bottom: 1rem;
         }
 
-        .file-input-wrapper input {
+        .file-input {
             display: none;
         }
 
-        .file-name {
-            display: block;
-            margin-top: 8px;
-            color: #4a5568;
-            font-size: 14px;
+        .upload-status {
+            margin-top: 1rem;
+            font-size: 0.875rem;
         }
 
+        .upload-status .success { color: var(--accent-green); }
+        .upload-status .error { color: var(--accent-red); }
+        .upload-status .processing { color: var(--accent-gold); }
+
+        /* Stats Grid */
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
         }
 
         .stat-card {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            padding: 24px;
+            background: var(--bg-card);
             border-radius: 12px;
-            color: white;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            padding: 1.5rem;
+            border: 1px solid var(--border-color);
         }
 
-        .stat-label {
-            font-size: 14px;
-            opacity: 0.9;
-            margin-bottom: 8px;
+        .stat-card h3 {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
         }
 
         .stat-value {
-            font-size: 32px;
-            font-weight: 700;
+            font-size: 2rem;
+            font-weight: 600;
+            font-family: var(--font-mono);
+            letter-spacing: -0.02em;
         }
+
+        .stat-value.positive { color: var(--accent-green); }
+        .stat-value.negative { color: var(--accent-red); }
 
         .stat-change {
-            font-size: 14px;
-            margin-top: 8px;
-            opacity: 0.9;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+            font-size: 0.875rem;
         }
 
-        .chart-container {
-            background: white;
-            padding: 24px;
+        .stat-change.positive { color: var(--accent-green); }
+        .stat-change.negative { color: var(--accent-red); }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 1rem;
+        }
+
+        .tab {
+            padding: 0.625rem 1.25rem;
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 0.875rem;
+            font-weight: 500;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+
+        .tab:hover {
+            color: var(--text-primary);
+            background: var(--bg-card);
+        }
+
+        .tab.active {
+            background: var(--bg-card);
+            color: var(--text-primary);
+        }
+
+        /* Tables */
+        .table-container {
+            background: var(--bg-card);
             border-radius: 12px;
-            margin-bottom: 30px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+            margin-bottom: 2rem;
+        }
+
+        .table-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .table-header h2 {
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            text-align: left;
+            padding: 0.875rem 1.5rem;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            font-weight: 500;
+        }
+
+        td {
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            font-size: 0.875rem;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:hover {
+            background: var(--bg-hover);
+        }
+
+        .symbol {
+            font-family: var(--font-mono);
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .company-name {
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+            margin-top: 0.25rem;
+        }
+
+        .number {
+            font-family: var(--font-mono);
+            text-align: right;
+        }
+
+        .positive { color: var(--accent-green); }
+        .negative { color: var(--accent-red); }
+
+        /* Account Selector */
+        .account-selector {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            margin-bottom: 1.5rem;
+        }
+
+        .account-chip {
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            font-size: 0.8125rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .account-chip:hover {
+            border-color: var(--accent-blue);
+        }
+
+        .account-chip.active {
+            background: var(--accent-blue);
+            border-color: var(--accent-blue);
+        }
+
+        /* Charts */
+        .chart-container {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 1.5rem;
+            border: 1px solid var(--border-color);
+            margin-bottom: 2rem;
         }
 
         .chart-container h2 {
-            color: #2d3748;
-            margin-bottom: 20px;
-            font-size: 20px;
+            font-size: 1rem;
+            margin-bottom: 1rem;
         }
 
-        .transactions-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
+        .chart-wrapper {
+            height: 300px;
+            position: relative;
         }
 
-        .transactions-table th {
-            background: #f7fafc;
-            padding: 12px;
-            text-align: left;
-            font-weight: 600;
-            color: #4a5568;
-            border-bottom: 2px solid #e2e8f0;
-            position: sticky;
-            top: 0;
-        }
-
-        .transactions-table td {
-            padding: 12px;
-            border-bottom: 1px solid #e2e8f0;
-            color: #2d3748;
-        }
-
-        .transactions-table tr:hover {
-            background: #f7fafc;
-        }
-
-        .buy {
-            color: #38a169;
-            font-weight: 600;
-        }
-
-        .sell {
-            color: #e53e3e;
-            font-weight: 600;
-        }
-
-        .loading {
+        /* Empty State */
+        .empty-state {
             text-align: center;
-            padding: 20px;
-            color: #718096;
+            padding: 4rem 2rem;
+            color: var(--text-secondary);
         }
 
-        .error {
-            background: #fed7d7;
-            color: #c53030;
-            padding: 12px;
+        .empty-state svg {
+            width: 64px;
+            height: 64px;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+
+        .empty-state h3 {
+            font-size: 1.125rem;
+            color: var(--text-primary);
+            margin-bottom: 0.5rem;
+        }
+
+        /* Loading */
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            color: var(--text-secondary);
+        }
+
+        .spinner {
+            width: 24px;
+            height: 24px;
+            border: 2px solid var(--border-color);
+            border-top-color: var(--accent-blue);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 0.75rem;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Progress bar */
+        .progress-container {
+            margin-top: 1rem;
+        }
+
+        .progress-bar {
+            height: 6px;
+            background: var(--bg-secondary);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--accent-blue);
+            transition: width 0.3s;
+        }
+
+        .progress-text {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 0.5rem;
+        }
+
+        /* Transactions List */
+        .transaction-row {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .transaction-icon {
+            width: 32px;
+            height: 32px;
             border-radius: 8px;
-            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.875rem;
         }
 
-        .account-card {
-            background: #f7fafc;
-            padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 15px;
-            border-left: 4px solid #667eea;
+        .transaction-icon.buy {
+            background: var(--accent-green-dim);
+            color: var(--accent-green);
         }
 
-        .account-card h3 {
-            color: #2d3748;
-            margin-bottom: 10px;
-            font-size: 18px;
+        .transaction-icon.sell {
+            background: var(--accent-red-dim);
+            color: var(--accent-red);
         }
 
-        .account-stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 15px;
-            margin-top: 10px;
+        .transaction-icon.dividend {
+            background: rgba(245, 158, 11, 0.2);
+            color: var(--accent-gold);
         }
 
-        .account-stat {
-            background: white;
-            padding: 12px;
+        .transaction-details {
+            flex: 1;
+        }
+
+        .transaction-type {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            table {
+                font-size: 0.8125rem;
+            }
+
+            th, td {
+                padding: 0.75rem 1rem;
+            }
+        }
+
+        /* Search */
+        .search-input {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
             border-radius: 6px;
+            padding: 0.5rem 1rem;
+            color: var(--text-primary);
+            font-size: 0.875rem;
+            width: 200px;
         }
 
-        .account-stat-label {
-            font-size: 12px;
-            color: #718096;
-            margin-bottom: 4px;
+        .search-input::placeholder {
+            color: var(--text-muted);
         }
 
-        .account-stat-value {
-            font-size: 20px;
-            font-weight: 700;
-            color: #2d3748;
+        .search-input:focus {
+            outline: none;
+            border-color: var(--accent-blue);
+        }
+
+        /* Scrollable table */
+        .table-scroll {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .table-scroll::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .table-scroll::-webkit-scrollbar-track {
+            background: var(--bg-secondary);
+        }
+
+        .table-scroll::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 4px;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>📈 Investment Portfolio Tracker</h1>
-        <p class="subtitle">Upload your Fidelity year-end statements and transaction data to visualize your 2025 portfolio performance</p>
-
-        <div class="upload-section">
-            <h3 style="margin-bottom: 20px; color: #2d3748;">Upload Your Data</h3>
-            
-            <div class="file-input-wrapper">
-                <label for="pdf2024">
-                    📄 2024 Statements (PDF)
-                </label>
-                <input type="file" id="pdf2024" accept=".pdf" multiple>
-                <span class="file-name" id="pdf2024-name">No files chosen</span>
+        <header>
+            <h1>Portfolio Tracker</h1>
+            <div class="header-actions">
+                <button class="btn btn-secondary" onclick="exportData()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="7 10 12 15 17 10"/>
+                        <line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                    Export
+                </button>
+                <button class="btn btn-danger" onclick="clearAllData()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="3 6 5 6 21 6"/>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                    </svg>
+                    Clear Data
+                </button>
             </div>
+        </header>
 
-            <div class="file-input-wrapper">
-                <label for="pdf2025">
-                    📄 2025 Statements (PDF)
-                </label>
-                <input type="file" id="pdf2025" accept=".pdf" multiple>
-                <span class="file-name" id="pdf2025-name">No files chosen</span>
-            </div>
-
-            <div class="file-input-wrapper">
-                <label for="csvTransactions">
-                    📊 Transaction CSVs (All Quarters)
-                </label>
-                <input type="file" id="csvTransactions" accept=".csv" multiple>
-                <span class="file-name" id="csv-name">No files chosen</span>
+        <!-- Upload Section -->
+        <div class="upload-section" id="uploadSection">
+            <h2>Upload Your Fidelity Statements</h2>
+            <p>Drop your PDF statements and CSV transaction history files here, or click to browse</p>
+            <input type="file" id="fileInput" class="file-input" multiple accept=".pdf,.csv">
+            <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="17 8 12 3 7 8"/>
+                    <line x1="12" y1="3" x2="12" y2="15"/>
+                </svg>
+                Select Files
+            </button>
+            <div id="uploadStatus" class="upload-status"></div>
+            <div class="progress-container" id="progressContainer" style="display: none;">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+                </div>
+                <div class="progress-text" id="progressText">Processing...</div>
             </div>
         </div>
 
-        <div id="error-message"></div>
-        <div id="loading" class="loading" style="display: none;">Processing your data...</div>
-
+        <!-- Dashboard (hidden until data loaded) -->
         <div id="dashboard" style="display: none;">
+            <!-- Stats Grid -->
             <div class="stats-grid">
                 <div class="stat-card">
-                    <div class="stat-label">Portfolio Value (2025)</div>
-                    <div class="stat-value" id="current-value">$0</div>
-                    <div class="stat-change" id="year-change">+$0 (0%)</div>
+                    <h3>Total Portfolio Value (2025)</h3>
+                    <div class="stat-value" id="totalValue2025">$0</div>
+                    <div class="stat-change" id="totalChange">
+                        <span>vs 2024</span>
+                    </div>
                 </div>
-
                 <div class="stat-card">
-                    <div class="stat-label">Total Purchases</div>
-                    <div class="stat-value" id="total-purchases">$0</div>
-                    <div class="stat-change" id="purchase-count">0 transactions</div>
+                    <h3>Total Portfolio Value (2024)</h3>
+                    <div class="stat-value" id="totalValue2024">$0</div>
                 </div>
-
                 <div class="stat-card">
-                    <div class="stat-label">Total Sales</div>
-                    <div class="stat-value" id="total-sales">$0</div>
-                    <div class="stat-change" id="sale-count">0 transactions</div>
+                    <h3>Year-over-Year Growth</h3>
+                    <div class="stat-value" id="yoyGrowth">0%</div>
                 </div>
-
                 <div class="stat-card">
-                    <div class="stat-label">Net Activity</div>
-                    <div class="stat-value" id="net-activity">$0</div>
-                    <div class="stat-change" id="activity-type">Invested</div>
+                    <h3>Total Dividends (2025)</h3>
+                    <div class="stat-value" id="totalDividends">$0</div>
                 </div>
             </div>
 
-            <div class="chart-container">
-                <h2>Portfolio Growth (2024 - 2025)</h2>
-                <canvas id="growthChart"></canvas>
+            <!-- Account Selector -->
+            <div class="account-selector" id="accountSelector"></div>
+
+            <!-- Tabs -->
+            <div class="tabs">
+                <button class="tab active" data-tab="holdings" onclick="switchTab('holdings')">Holdings</button>
+                <button class="tab" data-tab="transactions" onclick="switchTab('transactions')">Transactions</button>
+                <button class="tab" data-tab="growth" onclick="switchTab('growth')">Growth Analysis</button>
             </div>
 
-            <div class="chart-container">
-                <h2>Account Performance Breakdown</h2>
-                <div id="account-breakdown"></div>
-            </div>
-
-            <div class="chart-container">
-                <h2>Performance by Holding</h2>
-                <canvas id="holdingsChart"></canvas>
-            </div>
-
-            <div class="chart-container">
-                <h2>Buy/Sell Activity by Symbol</h2>
-                <canvas id="symbolActivityChart"></canvas>
-            </div>
-
-            <div class="chart-container">
-                <h2>Monthly Transaction Activity</h2>
-                <canvas id="transactionChart"></canvas>
-            </div>
-
-            <div class="chart-container">
-                <h2>Transaction History by Account</h2>
-                <div style="margin-bottom: 20px;">
-                    <label for="account-filter" style="font-weight: 600; margin-right: 10px;">Filter by Account:</label>
-                    <select id="account-filter" style="padding: 8px 12px; border-radius: 6px; border: 1px solid #cbd5e0;">
-                        <option value="all">All Accounts</option>
-                    </select>
-                    <label for="symbol-filter" style="font-weight: 600; margin-left: 20px; margin-right: 10px;">Filter by Symbol:</label>
-                    <select id="symbol-filter" style="padding: 8px 12px; border-radius: 6px; border: 1px solid #cbd5e0;">
-                        <option value="all">All Symbols</option>
-                    </select>
+            <!-- Holdings Tab -->
+            <div id="holdingsTab" class="tab-content">
+                <div class="chart-container">
+                    <h2>Portfolio Allocation</h2>
+                    <div class="chart-wrapper">
+                        <canvas id="allocationChart"></canvas>
+                    </div>
                 </div>
-                <table class="transactions-table" id="transactions-table">
-                    <thead>
-                        <tr>
-                            <th>Date</th>
-                            <th>Account</th>
-                            <th>Type</th>
-                            <th>Symbol</th>
-                            <th>Description</th>
-                            <th>Quantity</th>
-                            <th>Price</th>
-                            <th>Amount</th>
-                        </tr>
-                    </thead>
-                    <tbody id="transactions-body">
-                    </tbody>
-                </table>
+
+                <div class="table-container">
+                    <div class="table-header">
+                        <h2>Holdings</h2>
+                        <input type="text" class="search-input" id="holdingsSearch" placeholder="Search holdings..." oninput="filterHoldings()">
+                    </div>
+                    <div class="table-scroll">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Symbol</th>
+                                    <th>Account</th>
+                                    <th class="number">Shares</th>
+                                    <th class="number">Value (2024)</th>
+                                    <th class="number">Value (2025)</th>
+                                    <th class="number">Change</th>
+                                    <th class="number">% Change</th>
+                                </tr>
+                            </thead>
+                            <tbody id="holdingsTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Transactions Tab -->
+            <div id="transactionsTab" class="tab-content" style="display: none;">
+                <div class="table-container">
+                    <div class="table-header">
+                        <h2>2025 Transactions</h2>
+                        <input type="text" class="search-input" id="transactionsSearch" placeholder="Search transactions..." oninput="filterTransactions()">
+                    </div>
+                    <div class="table-scroll">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Type</th>
+                                    <th>Symbol</th>
+                                    <th>Account</th>
+                                    <th class="number">Quantity</th>
+                                    <th class="number">Price</th>
+                                    <th class="number">Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody id="transactionsTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Growth Tab -->
+            <div id="growthTab" class="tab-content" style="display: none;">
+                <div class="chart-container">
+                    <h2>Top Performers (by % Growth)</h2>
+                    <div class="chart-wrapper">
+                        <canvas id="growthChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <h3>Best Performer</h3>
+                        <div class="stat-value positive" id="bestPerformer">-</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Worst Performer</h3>
+                        <div class="stat-value negative" id="worstPerformer">-</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Total Purchases (2025)</h3>
+                        <div class="stat-value" id="totalPurchases">$0</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Total Sales (2025)</h3>
+                        <div class="stat-value" id="totalSales">$0</div>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <div class="table-header">
+                        <h2>Growth by Holding</h2>
+                    </div>
+                    <div class="table-scroll">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Symbol</th>
+                                    <th>Account</th>
+                                    <th class="number">2024 Value</th>
+                                    <th class="number">2025 Value</th>
+                                    <th class="number">$ Change</th>
+                                    <th class="number">% Change</th>
+                                </tr>
+                            </thead>
+                            <tbody id="growthTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
     <script>
+        // Initialize PDF.js worker
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-        var portfolioData = {
-            value2024: 0,
-            value2025: 0,
+        // Global state
+        let portfolioData = {
+            holdings2024: [],
+            holdings2025: [],
             transactions: [],
-            accounts: {}
+            accounts: new Set()
         };
 
-        document.getElementById('pdf2024').addEventListener('change', function(e) {
-            var files = Array.from(e.target.files);
-            document.getElementById('pdf2024-name').textContent = files.length > 0 ? files.length + ' file(s) selected' : 'No files chosen';
-            
-            files.forEach(function(file) {
-                processPDF(file, 2024);
-            });
+        let selectedAccount = 'all';
+        let allocationChart = null;
+        let growthChart = null;
+
+        // Initialize on load
+        document.addEventListener('DOMContentLoaded', () => {
+            loadFromStorage();
+            setupDragDrop();
+            setupFileInput();
         });
 
-        document.getElementById('pdf2025').addEventListener('change', function(e) {
-            var files = Array.from(e.target.files);
-            document.getElementById('pdf2025-name').textContent = files.length > 0 ? files.length + ' file(s) selected' : 'No files chosen';
-            
-            files.forEach(function(file) {
-                processPDF(file, 2025);
-            });
-        });
-
-        document.getElementById('csvTransactions').addEventListener('change', function(e) {
-            var files = Array.from(e.target.files);
-            document.getElementById('csv-name').textContent = files.length > 0 ? files.length + ' file(s) selected' : 'No files chosen';
-            
-            files.forEach(function(file) {
-                processCSV(file);
-            });
-        });
-
-        function processPDF(file, year) {
-            showLoading(true);
-            
-            var reader = new FileReader();
-            reader.onload = function(e) {
-                var arrayBuffer = e.target.result;
-                
-                pdfjsLib.getDocument({data: arrayBuffer}).promise.then(function(pdf) {
-                    var numPages = pdf.numPages;
-                    var textPromises = [];
-                    
-                    for (var i = 1; i <= numPages; i++) {
-                        textPromises.push(
-                            pdf.getPage(i).then(function(page) {
-                                return page.getTextContent().then(function(content) {
-                                    return content.items.map(function(item) { return item.str; }).join(' ');
-                                });
-                            })
-                        );
-                    }
-                    
-                    Promise.all(textPromises).then(function(texts) {
-                        var text = texts.join(' ');
-                        
-                        var valueMatch = text.match(/Your\s+Net\s+Portfolio\s+Value[:\s]+\$?([\d,]+\.?\d*)/i);
-                        
-                        if (!valueMatch) {
-                            valueMatch = text.match(/Ending\s+Net\s+Portfolio\s+Value[:\s]+\$?([\d,]+\.?\d*)/i);
-                        }
-                        
-                        if (!valueMatch) {
-                            var accountMatches = text.match(/Ending\s+(?:Net\s+)?Account\s+Value[:\s]+\$?([\d,]+\.?\d*)/gi);
-                            if (accountMatches && accountMatches.length > 0) {
-                                var totalValue = 0;
-                                accountMatches.forEach(function(match) {
-                                    var val = match.match(/\$?([\d,]+\.?\d*)/);
-                                    if (val) {
-                                        totalValue += parseFloat(val[1].replace(/,/g, ''));
-                                    }
-                                });
-                                if (totalValue > 0) {
-                                    if (year === 2024) {
-                                        portfolioData.value2024 += totalValue;
-                                    } else {
-                                        portfolioData.value2025 += totalValue;
-                                    }
-                                }
-                            }
-                        }
-                        
-                        if (valueMatch) {
-                            var value = parseFloat(valueMatch[1].replace(/,/g, ''));
-                            if (year === 2024) {
-                                portfolioData.value2024 += value;
-                            } else {
-                                portfolioData.value2025 += value;
-                            }
-                        }
-
-                        updateDashboard();
-                        showLoading(false);
-                    });
-                }).catch(function(error) {
-                    showError('Error processing ' + year + ' PDF (' + file.name + '): ' + error.message);
-                    showLoading(false);
-                });
+        // LocalStorage functions
+        function saveToStorage() {
+            const data = {
+                holdings2024: portfolioData.holdings2024,
+                holdings2025: portfolioData.holdings2025,
+                transactions: portfolioData.transactions,
+                accounts: Array.from(portfolioData.accounts)
             };
-            
-            reader.readAsArrayBuffer(file);
+            localStorage.setItem('portfolioData', JSON.stringify(data));
         }
 
-        function processCSV(file) {
-            showLoading(true);
-            
-            Papa.parse(file, {
-                header: true,
-                skipEmptyLines: true,
-                complete: function(results) {
-                    try {
-                        var newTransactions = results.data
-                            .map(function(row) {
-                                var date = row['Run Date'] || row['Date'] || row['Trade Date'] || '';
-                                var action = row['Action'] || row['Type'] || row['Transaction Type'] || '';
-                                var symbol = row['Symbol'] || row['Ticker'] || '';
-                                var description = row['Description'] || row['Security Description'] || '';
-                                var quantity = row['Quantity'] || row['Shares'] || '0';
-                                var price = row['Price'] || row['Unit Price'] || '0';
-                                var amount = row['Amount'] || row['Net Amount'] || '0';
-                                var account = row['Account Number'] || row['Account'] || row['Account Name'] || 'Unknown';
-
-                                return {
-                                    date: date,
-                                    action: action,
-                                    symbol: symbol,
-                                    description: description,
-                                    quantity: parseFloat(quantity.toString().replace(/,/g, '')) || 0,
-                                    price: parseFloat(price.toString().replace(/[\$,]/g, '')) || 0,
-                                    amount: parseFloat(amount.toString().replace(/[\$,]/g, '')) || 0,
-                                    account: account
-                                };
-                            })
-                            .filter(function(t) { return t.date && t.action; });
-
-                        portfolioData.transactions = portfolioData.transactions.concat(newTransactions);
-                        
-                        var uniqueTransactions = [];
-                        var seen = new Set();
-                        
-                        portfolioData.transactions.forEach(function(t) {
-                            var key = t.date + '-' + t.action + '-' + t.symbol + '-' + t.amount + '-' + t.account;
-                            if (!seen.has(key)) {
-                                seen.add(key);
-                                uniqueTransactions.push(t);
-                            }
-                        });
-                        
-                        portfolioData.transactions = uniqueTransactions.sort(function(a, b) {
-                            return new Date(a.date) - new Date(b.date);
-                        });
-
-                        updateDashboard();
-                        showLoading(false);
-                    } catch (error) {
-                        showError('Error processing CSV (' + file.name + '): ' + error.message);
-                        showLoading(false);
-                    }
+        function loadFromStorage() {
+            const saved = localStorage.getItem('portfolioData');
+            if (saved) {
+                const data = JSON.parse(saved);
+                portfolioData.holdings2024 = data.holdings2024 || [];
+                portfolioData.holdings2025 = data.holdings2025 || [];
+                portfolioData.transactions = data.transactions || [];
+                portfolioData.accounts = new Set(data.accounts || []);
+                
+                if (portfolioData.holdings2024.length > 0 || portfolioData.holdings2025.length > 0) {
+                    updateDashboard();
+                    document.getElementById('dashboard').style.display = 'block';
                 }
+            }
+        }
+
+        function clearAllData() {
+            if (confirm('Are you sure you want to clear all portfolio data?')) {
+                localStorage.removeItem('portfolioData');
+                portfolioData = {
+                    holdings2024: [],
+                    holdings2025: [],
+                    transactions: [],
+                    accounts: new Set()
+                };
+                document.getElementById('dashboard').style.display = 'none';
+                document.getElementById('uploadStatus').innerHTML = '';
+            }
+        }
+
+        function exportData() {
+            const data = JSON.stringify(portfolioData, (key, value) => {
+                if (value instanceof Set) return Array.from(value);
+                return value;
+            }, 2);
+            const blob = new Blob([data], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'portfolio-data.json';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // File handling
+        function setupDragDrop() {
+            const uploadSection = document.getElementById('uploadSection');
+            
+            uploadSection.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                uploadSection.classList.add('dragover');
+            });
+            
+            uploadSection.addEventListener('dragleave', () => {
+                uploadSection.classList.remove('dragover');
+            });
+            
+            uploadSection.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadSection.classList.remove('dragover');
+                handleFiles(e.dataTransfer.files);
             });
         }
 
-        function updateDashboard() {
-            if (portfolioData.value2024 === 0 && portfolioData.value2025 === 0 && portfolioData.transactions.length === 0) {
-                return;
+        function setupFileInput() {
+            document.getElementById('fileInput').addEventListener('change', (e) => {
+                handleFiles(e.target.files);
+            });
+        }
+
+        async function handleFiles(files) {
+            const statusEl = document.getElementById('uploadStatus');
+            const progressContainer = document.getElementById('progressContainer');
+            const progressFill = document.getElementById('progressFill');
+            const progressText = document.getElementById('progressText');
+            
+            progressContainer.style.display = 'block';
+            let processed = 0;
+            const total = files.length;
+
+            for (const file of files) {
+                progressText.textContent = `Processing ${file.name}...`;
+                progressFill.style.width = `${(processed / total) * 100}%`;
+                
+                try {
+                    if (file.name.endsWith('.pdf')) {
+                        await processPDF(file);
+                        statusEl.innerHTML += `<div class="success">✓ Processed ${file.name}</div>`;
+                    } else if (file.name.endsWith('.csv')) {
+                        await processCSV(file);
+                        statusEl.innerHTML += `<div class="success">✓ Processed ${file.name}</div>`;
+                    } else {
+                        statusEl.innerHTML += `<div class="error">✗ Unsupported file: ${file.name}</div>`;
+                    }
+                } catch (error) {
+                    console.error(`Error processing ${file.name}:`, error);
+                    statusEl.innerHTML += `<div class="error">✗ Error processing ${file.name}: ${error.message}</div>`;
+                }
+                
+                processed++;
+                progressFill.style.width = `${(processed / total) * 100}%`;
             }
 
+            progressText.textContent = 'Processing complete!';
+            setTimeout(() => {
+                progressContainer.style.display = 'none';
+            }, 2000);
+
+            saveToStorage();
+            updateDashboard();
             document.getElementById('dashboard').style.display = 'block';
-
-            var purchases = portfolioData.transactions.filter(function(t) {
-                return t.action.toLowerCase().includes('buy') || t.action.toLowerCase().includes('purchase');
-            });
-            
-            var sales = portfolioData.transactions.filter(function(t) {
-                return t.action.toLowerCase().includes('sell') || t.action.toLowerCase().includes('sale');
-            });
-
-            var totalPurchases = purchases.reduce(function(sum, t) { return sum + Math.abs(t.amount); }, 0);
-            var totalSales = sales.reduce(function(sum, t) { return sum + Math.abs(t.amount); }, 0);
-            var netActivity = totalPurchases - totalSales;
-
-            var accounts = {};
-            portfolioData.transactions.forEach(function(t) {
-                if (!accounts[t.account]) {
-                    accounts[t.account] = {
-                        purchases: [],
-                        sales: [],
-                        symbols: new Set()
-                    };
-                }
-                if (t.action.toLowerCase().includes('buy') || t.action.toLowerCase().includes('purchase')) {
-                    accounts[t.account].purchases.push(t);
-                } else if (t.action.toLowerCase().includes('sell') || t.action.toLowerCase().includes('sale')) {
-                    accounts[t.account].sales.push(t);
-                }
-                if (t.symbol) {
-                    accounts[t.account].symbols.add(t.symbol);
-                }
-            });
-
-            portfolioData.accounts = accounts;
-
-            document.getElementById('current-value').textContent = '$' + portfolioData.value2025.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-            
-            var change = portfolioData.value2025 - portfolioData.value2024;
-            var changePercent = portfolioData.value2024 > 0 ? ((change / portfolioData.value2024) * 100) : 0;
-            document.getElementById('year-change').textContent = (change >= 0 ? '+' : '') + '$' + change.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' (' + changePercent.toFixed(2) + '%)';
-
-            document.getElementById('total-purchases').textContent = '$' + totalPurchases.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-            document.getElementById('purchase-count').textContent = purchases.length + ' transactions';
-
-            document.getElementById('total-sales').textContent = '$' + totalSales.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-            document.getElementById('sale-count').textContent = sales.length + ' transactions';
-
-            document.getElementById('net-activity').textContent = '$' + Math.abs(netActivity).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-            document.getElementById('activity-type').textContent = netActivity >= 0 ? 'Net Invested' : 'Net Withdrawn';
-
-            createGrowthChart();
-            createAccountBreakdown(accounts);
-            createHoldingsChart(purchases, sales);
-            createSymbolActivityChart(purchases, sales);
-            createTransactionChart(purchases, sales);
-            createTransactionTable();
-            populateFilters();
         }
 
-        function createGrowthChart() {
-            var ctx = document.getElementById('growthChart');
-            if (window.growthChart) window.growthChart.destroy();
+        // PDF Processing
+        async function processPDF(file) {
+            const arrayBuffer = await file.arrayBuffer();
+            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+            
+            let fullText = '';
+            for (let i = 1; i <= pdf.numPages; i++) {
+                const page = await pdf.getPage(i);
+                const textContent = await page.getTextContent();
+                const pageText = textContent.items.map(item => item.str).join(' ');
+                fullText += pageText + '\n';
+            }
 
-            window.growthChart = new Chart(ctx, {
-                type: 'line',
+            // Determine if 2024 or 2025 statement based on filename or content
+            const is2024 = file.name.includes('2024') || fullText.includes('December 31, 2024');
+            const is2025 = file.name.includes('2025') || fullText.includes('December 31, 2025');
+            
+            const holdings = parseFidelityStatement(fullText, file.name);
+            
+            if (is2024 && !is2025) {
+                portfolioData.holdings2024 = [...portfolioData.holdings2024, ...holdings];
+            } else if (is2025) {
+                portfolioData.holdings2025 = [...portfolioData.holdings2025, ...holdings];
+            }
+
+            // Add accounts
+            holdings.forEach(h => portfolioData.accounts.add(h.account));
+        }
+
+        function parseFidelityStatement(text, filename) {
+            const holdings = [];
+            
+            // Extract account name from the text
+            let currentAccount = 'Unknown Account';
+            
+            // Look for account names in the text
+            const accountPatterns = [
+                /Primary Portfolio[^0-9]*(X\d+)/i,
+                /Individual[^0-9]*(Z\d+)/i,
+                /Joint WROS[^0-9]*(Z\d+)/i,
+                /Health Savings Account[^0-9]*(\d+)/i,
+                /MICROSOFT 401K PLAN[^0-9]*(\d+)/i,
+                /Brokerage Account[^0-9]*([\dA-Z]+)/i
+            ];
+
+            // Try to find account in filename
+            if (filename.toLowerCase().includes('joint')) {
+                currentAccount = 'Joint WROS - TOD';
+            }
+
+            // Parse holdings from text
+            // Look for patterns like: SYMBOL DESCRIPTION shares @ price = value
+            // Or table format: Symbol | Description | Quantity | Price | Value
+
+            // Common stock symbols to look for
+            const stockPatterns = [
+                // Pattern: SYMBOL some text QUANTITY shares VALUE
+                /([A-Z]{1,5})\s+(?:[A-Za-z\s&,.']+?)\s+([\d,]+\.?\d*)\s*(?:shares?|shs?)?\s*\$?([\d,]+\.?\d+)/gi,
+                // Pattern for mutual funds: SYMBOL description $VALUE
+                /([A-Z]{3,5}XX?)\s+[A-Za-z\s]+\s+\$?([\d,]+\.?\d+)/gi
+            ];
+
+            // Enhanced parsing for Fidelity statements
+            const lines = text.split(/\n|\s{2,}/);
+            let i = 0;
+            
+            while (i < lines.length) {
+                const line = lines[i].trim();
+                
+                // Check for account headers
+                if (line.includes('Primary Portfolio')) currentAccount = 'Primary Portfolio';
+                else if (line.includes('Individual - TOD') || line.includes('Individual-TOD')) currentAccount = 'Individual - TOD';
+                else if (line.includes('Joint WROS')) currentAccount = 'Joint WROS - TOD';
+                else if (line.includes('Health Savings')) currentAccount = 'Health Savings Account';
+                else if (line.includes('401K') || line.includes('401k')) currentAccount = 'MICROSOFT 401K PLAN';
+
+                // Look for stock entries
+                // Try to match: SYMBOL followed by name, then numbers
+                const symbolMatch = line.match(/^([A-Z]{1,5})$/);
+                if (symbolMatch) {
+                    const symbol = symbolMatch[1];
+                    // Look ahead for quantity and value
+                    const nextText = lines.slice(i, i + 10).join(' ');
+                    
+                    // Try to extract quantity and value
+                    const numMatches = nextText.match(/[\d,]+\.?\d*/g);
+                    if (numMatches && numMatches.length >= 2) {
+                        // Filter to reasonable numbers
+                        const nums = numMatches.map(n => parseFloat(n.replace(/,/g, ''))).filter(n => !isNaN(n));
+                        
+                        if (nums.length >= 2) {
+                            // Try to identify quantity (usually smaller) and value (usually larger)
+                            let quantity, value;
+                            
+                            // Find a reasonable quantity (usually < 100000)
+                            const possibleQty = nums.find(n => n < 100000 && n > 0);
+                            const possibleVal = nums.find(n => n >= 100);
+                            
+                            if (possibleQty !== undefined && possibleVal !== undefined) {
+                                holdings.push({
+                                    symbol: symbol,
+                                    name: symbol, // Will try to match later
+                                    quantity: possibleQty,
+                                    value: possibleVal,
+                                    account: currentAccount
+                                });
+                            }
+                        }
+                    }
+                }
+                
+                i++;
+            }
+
+            // Alternative: Look for specific patterns in full text
+            // Pattern: SYMBOL followed by company name, then numeric data
+            const holdingPatterns = [
+                // Fidelity format: SYMBOL COMPANY NAME QTY PRICE CHANGE VALUE
+                /([A-Z]{1,5})\s+([A-Za-z][A-Za-z\s&,.'()-]+?)\s+([\d,]+\.?\d*)\s+\$?([\d,]+\.?\d*)\s+[-+]?\$?[\d,]*\.?\d*\s+[-+]?\$?[\d,]*\.?\d*%?\s+\$?([\d,]+\.?\d+)/g
+            ];
+
+            let match;
+            for (const pattern of holdingPatterns) {
+                pattern.lastIndex = 0;
+                while ((match = pattern.exec(text)) !== null) {
+                    const symbol = match[1];
+                    const name = match[2].trim();
+                    const quantity = parseFloat(match[3].replace(/,/g, ''));
+                    const value = parseFloat(match[5].replace(/,/g, ''));
+                    
+                    if (!isNaN(quantity) && !isNaN(value) && value > 0) {
+                        // Check if we already have this holding
+                        const existing = holdings.find(h => h.symbol === symbol && h.account === currentAccount);
+                        if (!existing) {
+                            holdings.push({
+                                symbol,
+                                name,
+                                quantity,
+                                value,
+                                account: currentAccount
+                            });
+                        }
+                    }
+                }
+            }
+
+            // If we still don't have holdings, try a more aggressive approach
+            if (holdings.length === 0) {
+                // Look for any stock symbols followed by dollar amounts
+                const simplePattern = /([A-Z]{1,5})\b.*?\$([\d,]+\.?\d{2})/g;
+                while ((match = simplePattern.exec(text)) !== null) {
+                    const symbol = match[1];
+                    const value = parseFloat(match[2].replace(/,/g, ''));
+                    
+                    // Filter out common non-stock matches
+                    if (!['THE', 'AND', 'FOR', 'INC', 'LLC', 'USD', 'ETF'].includes(symbol) && value > 100) {
+                        const existing = holdings.find(h => h.symbol === symbol);
+                        if (!existing) {
+                            holdings.push({
+                                symbol,
+                                name: symbol,
+                                quantity: 0,
+                                value,
+                                account: currentAccount
+                            });
+                        }
+                    }
+                }
+            }
+
+            return holdings;
+        }
+
+        // CSV Processing
+        async function processCSV(file) {
+            return new Promise((resolve, reject) => {
+                Papa.parse(file, {
+                    header: true,
+                    skipEmptyLines: true,
+                    complete: (results) => {
+                        const transactions = results.data.map(row => ({
+                            date: row['Run Date'] || row['Date'],
+                            account: row['Account'] || 'Unknown',
+                            accountNumber: row['Account Number'],
+                            action: row['Action'] || '',
+                            symbol: row['Symbol'] || '',
+                            description: row['Description'] || '',
+                            type: row['Type'] || '',
+                            quantity: parseFloat(row['Quantity']) || 0,
+                            price: parseFloat(row['Price']) || 0,
+                            amount: parseFloat(row['Amount']) || 0
+                        })).filter(t => t.date && t.action);
+
+                        portfolioData.transactions = [...portfolioData.transactions, ...transactions];
+                        
+                        // Add accounts
+                        transactions.forEach(t => {
+                            if (t.account) portfolioData.accounts.add(t.account);
+                        });
+
+                        resolve();
+                    },
+                    error: reject
+                });
+            });
+        }
+
+        // Dashboard update
+        function updateDashboard() {
+            updateAccountSelector();
+            updateStats();
+            updateHoldingsTable();
+            updateTransactionsTable();
+            updateGrowthTable();
+            updateCharts();
+        }
+
+        function updateAccountSelector() {
+            const selector = document.getElementById('accountSelector');
+            const accounts = Array.from(portfolioData.accounts);
+            
+            let html = `<button class="account-chip ${selectedAccount === 'all' ? 'active' : ''}" onclick="selectAccount('all')">All Accounts</button>`;
+            
+            accounts.forEach(account => {
+                const isActive = selectedAccount === account ? 'active' : '';
+                html += `<button class="account-chip ${isActive}" onclick="selectAccount('${account}')">${account}</button>`;
+            });
+            
+            selector.innerHTML = html;
+        }
+
+        function selectAccount(account) {
+            selectedAccount = account;
+            updateDashboard();
+        }
+
+        function updateStats() {
+            const holdings2024 = filterByAccount(portfolioData.holdings2024);
+            const holdings2025 = filterByAccount(portfolioData.holdings2025);
+            const transactions = filterByAccount(portfolioData.transactions);
+
+            const total2024 = holdings2024.reduce((sum, h) => sum + (h.value || 0), 0);
+            const total2025 = holdings2025.reduce((sum, h) => sum + (h.value || 0), 0);
+            const change = total2025 - total2024;
+            const changePercent = total2024 > 0 ? (change / total2024) * 100 : 0;
+
+            document.getElementById('totalValue2024').textContent = formatCurrency(total2024);
+            document.getElementById('totalValue2025').textContent = formatCurrency(total2025);
+            
+            const yoyEl = document.getElementById('yoyGrowth');
+            yoyEl.textContent = formatPercent(changePercent);
+            yoyEl.className = `stat-value ${changePercent >= 0 ? 'positive' : 'negative'}`;
+
+            const changeEl = document.getElementById('totalChange');
+            changeEl.textContent = `${change >= 0 ? '+' : ''}${formatCurrency(change)} vs 2024`;
+            changeEl.className = `stat-change ${change >= 0 ? 'positive' : 'negative'}`;
+
+            // Calculate dividends
+            const dividends = transactions.filter(t => 
+                t.action && t.action.toLowerCase().includes('dividend') && t.amount > 0
+            ).reduce((sum, t) => sum + t.amount, 0);
+            
+            document.getElementById('totalDividends').textContent = formatCurrency(dividends);
+
+            // Calculate purchases and sales
+            const purchases = transactions.filter(t => 
+                t.action && (t.action.toLowerCase().includes('reinvestment') || 
+                            t.action.toLowerCase().includes('buy') ||
+                            t.action.toLowerCase().includes('contribution'))
+            ).reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
+
+            const sales = transactions.filter(t =>
+                t.action && (t.action.toLowerCase().includes('sold') || 
+                            t.action.toLowerCase().includes('sell'))
+            ).reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
+
+            document.getElementById('totalPurchases').textContent = formatCurrency(purchases);
+            document.getElementById('totalSales').textContent = formatCurrency(sales);
+
+            // Best and worst performers
+            const growthData = calculateGrowth();
+            if (growthData.length > 0) {
+                const sorted = [...growthData].sort((a, b) => b.percentChange - a.percentChange);
+                const best = sorted[0];
+                const worst = sorted[sorted.length - 1];
+                
+                document.getElementById('bestPerformer').textContent = 
+                    `${best.symbol} +${formatPercent(best.percentChange)}`;
+                document.getElementById('worstPerformer').textContent = 
+                    `${worst.symbol} ${formatPercent(worst.percentChange)}`;
+            }
+        }
+
+        function filterByAccount(items) {
+            if (selectedAccount === 'all') return items;
+            return items.filter(item => item.account === selectedAccount);
+        }
+
+        function updateHoldingsTable() {
+            const tbody = document.getElementById('holdingsTableBody');
+            const holdings2024 = filterByAccount(portfolioData.holdings2024);
+            const holdings2025 = filterByAccount(portfolioData.holdings2025);
+            
+            // Merge holdings data
+            const holdingsMap = new Map();
+            
+            holdings2024.forEach(h => {
+                const key = `${h.symbol}-${h.account}`;
+                holdingsMap.set(key, {
+                    symbol: h.symbol,
+                    name: h.name,
+                    account: h.account,
+                    quantity: h.quantity,
+                    value2024: h.value,
+                    value2025: 0
+                });
+            });
+            
+            holdings2025.forEach(h => {
+                const key = `${h.symbol}-${h.account}`;
+                if (holdingsMap.has(key)) {
+                    const existing = holdingsMap.get(key);
+                    existing.value2025 = h.value;
+                    existing.quantity = h.quantity;
+                } else {
+                    holdingsMap.set(key, {
+                        symbol: h.symbol,
+                        name: h.name,
+                        account: h.account,
+                        quantity: h.quantity,
+                        value2024: 0,
+                        value2025: h.value
+                    });
+                }
+            });
+            
+            const holdings = Array.from(holdingsMap.values())
+                .sort((a, b) => b.value2025 - a.value2025);
+            
+            if (holdings.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No holdings data. Upload PDF statements to see holdings.</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = holdings.map(h => {
+                const change = h.value2025 - h.value2024;
+                const percentChange = h.value2024 > 0 ? (change / h.value2024) * 100 : (h.value2025 > 0 ? 100 : 0);
+                const changeClass = change >= 0 ? 'positive' : 'negative';
+                
+                return `
+                    <tr>
+                        <td>
+                            <div class="symbol">${h.symbol}</div>
+                            <div class="company-name">${h.name || ''}</div>
+                        </td>
+                        <td>${h.account}</td>
+                        <td class="number">${formatNumber(h.quantity)}</td>
+                        <td class="number">${formatCurrency(h.value2024)}</td>
+                        <td class="number">${formatCurrency(h.value2025)}</td>
+                        <td class="number ${changeClass}">${change >= 0 ? '+' : ''}${formatCurrency(change)}</td>
+                        <td class="number ${changeClass}">${change >= 0 ? '+' : ''}${formatPercent(percentChange)}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function updateTransactionsTable() {
+            const tbody = document.getElementById('transactionsTableBody');
+            const transactions = filterByAccount(portfolioData.transactions)
+                .sort((a, b) => new Date(b.date) - new Date(a.date));
+            
+            if (transactions.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No transactions. Upload CSV files to see transaction history.</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = transactions.slice(0, 200).map(t => {
+                let typeClass = '';
+                let typeIcon = '';
+                
+                if (t.action.toLowerCase().includes('dividend')) {
+                    typeClass = 'dividend';
+                    typeIcon = '$';
+                } else if (t.action.toLowerCase().includes('reinvestment') || t.action.toLowerCase().includes('buy')) {
+                    typeClass = 'buy';
+                    typeIcon = '+';
+                } else if (t.action.toLowerCase().includes('sold') || t.action.toLowerCase().includes('sell')) {
+                    typeClass = 'sell';
+                    typeIcon = '-';
+                }
+                
+                const amountClass = t.amount >= 0 ? 'positive' : 'negative';
+                
+                // Simplify action text
+                let actionText = t.action;
+                if (actionText.length > 50) {
+                    actionText = actionText.substring(0, 50) + '...';
+                }
+                
+                return `
+                    <tr>
+                        <td>${formatDate(t.date)}</td>
+                        <td>
+                            <div class="transaction-row">
+                                ${typeIcon ? `<div class="transaction-icon ${typeClass}">${typeIcon}</div>` : ''}
+                                <div class="transaction-details">
+                                    <div>${actionText}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="symbol">${t.symbol || '-'}</td>
+                        <td>${t.account}</td>
+                        <td class="number">${t.quantity ? formatNumber(t.quantity) : '-'}</td>
+                        <td class="number">${t.price ? formatCurrency(t.price) : '-'}</td>
+                        <td class="number ${amountClass}">${formatCurrency(t.amount)}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function calculateGrowth() {
+            const holdings2024 = filterByAccount(portfolioData.holdings2024);
+            const holdings2025 = filterByAccount(portfolioData.holdings2025);
+            
+            const growthMap = new Map();
+            
+            holdings2024.forEach(h => {
+                const key = `${h.symbol}-${h.account}`;
+                growthMap.set(key, {
+                    symbol: h.symbol,
+                    account: h.account,
+                    value2024: h.value,
+                    value2025: 0
+                });
+            });
+            
+            holdings2025.forEach(h => {
+                const key = `${h.symbol}-${h.account}`;
+                if (growthMap.has(key)) {
+                    growthMap.get(key).value2025 = h.value;
+                } else {
+                    growthMap.set(key, {
+                        symbol: h.symbol,
+                        account: h.account,
+                        value2024: 0,
+                        value2025: h.value
+                    });
+                }
+            });
+            
+            return Array.from(growthMap.values()).map(item => {
+                const dollarChange = item.value2025 - item.value2024;
+                const percentChange = item.value2024 > 0 
+                    ? (dollarChange / item.value2024) * 100 
+                    : (item.value2025 > 0 ? 100 : 0);
+                
+                return {
+                    ...item,
+                    dollarChange,
+                    percentChange
+                };
+            }).filter(item => item.value2024 > 0 || item.value2025 > 0);
+        }
+
+        function updateGrowthTable() {
+            const tbody = document.getElementById('growthTableBody');
+            const growthData = calculateGrowth().sort((a, b) => b.percentChange - a.percentChange);
+            
+            if (growthData.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No growth data available.</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = growthData.map(item => {
+                const changeClass = item.percentChange >= 0 ? 'positive' : 'negative';
+                
+                return `
+                    <tr>
+                        <td class="symbol">${item.symbol}</td>
+                        <td>${item.account}</td>
+                        <td class="number">${formatCurrency(item.value2024)}</td>
+                        <td class="number">${formatCurrency(item.value2025)}</td>
+                        <td class="number ${changeClass}">${item.dollarChange >= 0 ? '+' : ''}${formatCurrency(item.dollarChange)}</td>
+                        <td class="number ${changeClass}">${item.percentChange >= 0 ? '+' : ''}${formatPercent(item.percentChange)}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function updateCharts() {
+            updateAllocationChart();
+            updateGrowthChart();
+        }
+
+        function updateAllocationChart() {
+            const holdings = filterByAccount(portfolioData.holdings2025);
+            
+            if (holdings.length === 0) return;
+            
+            // Aggregate by symbol
+            const symbolTotals = {};
+            holdings.forEach(h => {
+                symbolTotals[h.symbol] = (symbolTotals[h.symbol] || 0) + h.value;
+            });
+            
+            const sortedSymbols = Object.entries(symbolTotals)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 10);
+            
+            const ctx = document.getElementById('allocationChart').getContext('2d');
+            
+            if (allocationChart) {
+                allocationChart.destroy();
+            }
+            
+            const colors = [
+                '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
+                '#06b6d4', '#ec4899', '#84cc16', '#f97316', '#6366f1'
+            ];
+            
+            allocationChart = new Chart(ctx, {
+                type: 'doughnut',
                 data: {
-                    labels: ['End of 2024', 'End of 2025'],
+                    labels: sortedSymbols.map(s => s[0]),
                     datasets: [{
-                        label: 'Portfolio Value',
-                        data: [portfolioData.value2024, portfolioData.value2025],
-                        borderColor: '#667eea',
-                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
-                        tension: 0.4,
-                        fill: true,
-                        pointRadius: 6,
-                        pointHoverRadius: 8
+                        data: sortedSymbols.map(s => s[1]),
+                        backgroundColor: colors,
+                        borderColor: '#1a2332',
+                        borderWidth: 2
                     }]
                 },
                 options: {
                     responsive: true,
+                    maintainAspectRatio: false,
                     plugins: {
                         legend: {
-                            display: false
+                            position: 'right',
+                            labels: {
+                                color: '#94a3b8',
+                                padding: 15,
+                                font: { size: 12 }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: (context) => {
+                                    const value = context.parsed;
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = ((value / total) * 100).toFixed(1);
+                                    return `${context.label}: ${formatCurrency(value)} (${percentage}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateGrowthChart() {
+            const growthData = calculateGrowth()
+                .filter(item => item.value2024 > 0)
+                .sort((a, b) => b.percentChange - a.percentChange)
+                .slice(0, 10);
+            
+            if (growthData.length === 0) return;
+            
+            const ctx = document.getElementById('growthChart').getContext('2d');
+            
+            if (growthChart) {
+                growthChart.destroy();
+            }
+            
+            growthChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: growthData.map(d => d.symbol),
+                    datasets: [{
+                        label: '% Growth',
+                        data: growthData.map(d => d.percentChange),
+                        backgroundColor: growthData.map(d => d.percentChange >= 0 ? '#10b981' : '#ef4444'),
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: 'y',
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: (context) => `${context.parsed.x.toFixed(1)}%`
+                            }
                         }
                     },
                     scales: {
-                        y: {
-                            beginAtZero: false,
-                            ticks: {
-                                callback: function(value) {
-                                    return '$' + value.toLocaleString();
-                                }
+                        x: {
+                            grid: { color: '#2d3748' },
+                            ticks: { 
+                                color: '#94a3b8',
+                                callback: (value) => value + '%'
                             }
+                        },
+                        y: {
+                            grid: { display: false },
+                            ticks: { color: '#94a3b8' }
                         }
                     }
                 }
             });
         }
 
-        function createAccountBreakdown(accounts) {
-            var container = document.getElementById('account-breakdown');
-            container.innerHTML = '';
+        // Tab switching
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
+            
+            document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+            document.getElementById(`${tabName}Tab`).style.display = 'block';
+        }
 
-            Object.keys(accounts).forEach(function(accountName) {
-                var acc = accounts[accountName];
-                var totalPurchases = acc.purchases.reduce(function(sum, t) { return sum + Math.abs(t.amount); }, 0);
-                var totalSales = acc.sales.reduce(function(sum, t) { return sum + Math.abs(t.amount); }, 0);
-                var netActivity = totalPurchases - totalSales;
-
-                var card = document.createElement('div');
-                card.className = 'account-card';
-                
-                var h3 = document.createElement('h3');
-                h3.textContent = 'Account: ' + accountName;
-                card.appendChild(h3);
-                
-                var statsDiv = document.createElement('div');
-                statsDiv.className = 'account-stats';
-                
-                var purchaseDiv = document.createElement('div');
-                purchaseDiv.className = 'account-stat';
-                purchaseDiv.innerHTML = '<div class="account-stat-label">Total Purchases</div><div class="account-stat-value" style="color: #38a169;">$' + 
-                    totalPurchases.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '</div>';
-                statsDiv.appendChild(purchaseDiv);
-                
-                var salesDiv = document.createElement('div');
-                salesDiv.className = 'account-stat';
-                salesDiv.innerHTML = '<div class="account-stat-label">Total Sales</div><div class="account-stat-value" style="color: #e53e3e;">$' + 
-                    totalSales.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '</div>';
-                statsDiv.appendChild(salesDiv);
-                
-                var netDiv = document.createElement('div');
-                netDiv.className = 'account-stat';
-                netDiv.innerHTML = '<div class="account-stat-label">Net Activity</div><div class="account-stat-value">' + 
-                    (netActivity >= 0 ? '+' : '') + '$' + netActivity.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '</div>';
-                statsDiv.appendChild(netDiv);
-                
-                var symbolsDiv = document.createElement('div');
-                symbolsDiv.className = 'account-stat';
-                symbolsDiv.innerHTML = '<div class="account-stat-label">Unique Symbols</div><div class="account-stat-value">' + acc.symbols.size + '</div>';
-                statsDiv.appendChild(symbolsDiv);
-                
-                card.appendChild(statsDiv);
-                container.appendChild(card);
+        // Search/filter functions
+        function filterHoldings() {
+            const search = document.getElementById('holdingsSearch').value.toLowerCase();
+            const rows = document.querySelectorAll('#holdingsTableBody tr');
+            
+            rows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                row.style.display = text.includes(search) ? '' : 'none';
             });
         }
 
-        function createHoldingsChart(purchases, sales) {
-            var ctx = document.getElementById('holdingsChart');
-            if (window.holdingsChart) window.holdingsChart.destroy();
-
-            var symbolData = {};
+        function filterTransactions() {
+            const search = document.getElementById('transactionsSearch').value.toLowerCase();
+            const rows = document.querySelectorAll('#transactionsTableBody tr');
             
-            purchases.forEach(function(t) {
-                if (t.symbol) {
-                    if (!symbolData[t.symbol]) {
-                        symbolData[t.symbol] = { purchases: 0, sales: 0 };
-                    }
-                    symbolData[t.symbol].purchases += Math.abs(t.amount);
-                }
-            });
-
-            sales.forEach(function(t) {
-                if (t.symbol) {
-                    if (!symbolData[t.symbol]) {
-                        symbolData[t.symbol] = { purchases: 0, sales: 0 };
-                    }
-                    symbolData[t.symbol].sales += Math.abs(t.amount);
-                }
-            });
-
-            var symbols = Object.keys(symbolData)
-                .map(function(sym) {
-                    return {
-                        symbol: sym,
-                        purchases: symbolData[sym].purchases,
-                        sales: symbolData[sym].sales,
-                        total: symbolData[sym].purchases + symbolData[sym].sales
-                    };
-                })
-                .sort(function(a, b) { return b.total - a.total; })
-                .slice(0, 15);
-
-            window.holdingsChart = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: symbols.map(function(s) { return s.symbol; }),
-                    datasets: [{
-                        label: 'Purchases',
-                        data: symbols.map(function(s) { return s.purchases; }),
-                        backgroundColor: 'rgba(56, 161, 105, 0.8)'
-                    }, {
-                        label: 'Sales',
-                        data: symbols.map(function(s) { return s.sales; }),
-                        backgroundColor: 'rgba(229, 62, 62, 0.8)'
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: {
-                                callback: function(value) {
-                                    return '$' + value.toLocaleString();
-                                }
-                            }
-                        }
-                    }
-                }
+            rows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                row.style.display = text.includes(search) ? '' : 'none';
             });
         }
 
-        function createSymbolActivityChart(purchases, sales) {
-            var ctx = document.getElementById('symbolActivityChart');
-            if (window.symbolActivityChart) window.symbolActivityChart.destroy();
+        // Formatting utilities
+        function formatCurrency(value) {
+            if (value === null || value === undefined || isNaN(value)) return '$0';
+            return new Intl.NumberFormat('en-US', {
+                style: 'currency',
+                currency: 'USD',
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0
+            }).format(value);
+        }
 
-            var symbolData = {};
-            
-            purchases.concat(sales).forEach(function(t) {
-                if (t.symbol) {
-                    if (!symbolData[t.symbol]) {
-                        symbolData[t.symbol] = { purchases: 0, sales: 0, net: 0 };
-                    }
-                    if (t.action.toLowerCase().includes('buy') || t.action.toLowerCase().includes('purchase')) {
-                        symbolData[t.symbol].purchases += Math.abs(t.amount);
-                    } else {
-                        symbolData[t.symbol].sales += Math.abs(t.amount);
-                    }
-                }
+        function formatNumber(value) {
+            if (value === null || value === undefined || isNaN(value)) return '0';
+            return new Intl.NumberFormat('en-US', {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 3
+            }).format(value);
+        }
+
+        function formatPercent(value) {
+            if (value === null || value === undefined || isNaN(value)) return '0%';
+            return value.toFixed(1) + '%';
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '-';
+            const date = new Date(dateStr);
+            if (isNaN(date)) return dateStr;
+            return date.toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric'
             });
-
-            Object.keys(symbolData).forEach(function(sym) {
-                symbolData[sym].net = symbolData[sym].purchases - symbolData[sym].sales;
-            });
-
-            var symbols = Object.keys(symbolData)
-                .map(function(sym) {
-                    return {
-                        symbol: sym,
-                        net: symbolData[sym].net
-                    };
-                })
-                .sort(function(a, b) { return b.net - a.net; })
-                .slice(0, 15);
-
-            window.symbolActivityChart = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: symbols.map(function(s) { return s.symbol; }),
-                    datasets: [{
-                        label: 'Net Position (Purchases - Sales)',
-                        data: symbols.map(function(s) { return s.net; }),
-                        backgroundColor: symbols.map(function(s) {
-                            return s.net >= 0 ? 'rgba(56, 161, 105, 0.8)' : 'rgba(229, 62, 62, 0.8)';
-                        })
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    scales: {
-                        y: {
-                            ticks: {
-                                callback: function(value) {
-                                    
+        }
+    </script>
+</body>
+</html>
