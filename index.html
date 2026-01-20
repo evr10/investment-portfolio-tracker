@@ -8,6 +8,7 @@
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+    <script src="https://unpkg.com/recharts@2.5.0/dist/Recharts.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap');
@@ -25,11 +26,9 @@
 
     <script type="text/babel">
         const { useState, useEffect } = React;
+        const { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } = Recharts;
 
-        // ========== CONFIGURATION ==========
-        const STARTING_CASH_BALANCE = 0; // Set this to your actual starting cash/margin balance
-        // Example: If you had a -$5,000 margin loan before your CSV data starts, set this to -5000
-        // ===================================
+        const STARTING_CASH_BALANCE = 0;
 
         const normalizeAccountNumber = (accountNum) => {
             if (!accountNum) return '';
@@ -40,56 +39,24 @@
             return accountName && accountName.toUpperCase().includes('HEALTH SAVINGS');
         };
 
-        // Calculate cash balance from transactions up to a cutoff date
         const calculateCashBalance = (transactions, cutoffDate) => {
             if (!transactions || transactions.length === 0) return STARTING_CASH_BALANCE;
-
             let balance = STARTING_CASH_BALANCE;
             const cutoff = new Date(cutoffDate);
-
             transactions.forEach(trans => {
-                // Skip HSA transactions
                 if (trans.type === 'HSA') return;
-
-                // Skip if no date
                 if (!trans.date) return;
-
                 const transDate = new Date(trans.date);
                 if (transDate > cutoff) return;
-
-                const action = (trans.action || '').toUpperCase();
                 const amount = trans.amount || 0;
-
-                // Cash inflows (+)
-                if (action.includes('ELECTRONIC FUNDS TRANSFER') && amount > 0) {
-                    balance += amount;
-                }
-                // Cash outflows (-)
-                else if (action.includes('WIRE TRANSFER')) {
-                    balance += amount; // Amount is already negative
-                }
-                // Stock purchases reduce cash
-                else if (trans.type === 'Buy' && amount < 0) {
-                    balance += amount; // Amount is already negative
-                }
-                // Stock sales increase cash
-                else if (trans.type === 'Sell' && amount > 0) {
-                    balance += amount;
-                }
-                // Dividends received (not reinvested) increase cash
-                else if (trans.type === 'Dividend' && amount > 0) {
-                    balance += amount;
-                }
-                // Fees reduce cash (margin interest, etc.)
-                else if (trans.type === 'Fee') {
-                    balance += amount; // Amount is already negative
-                }
+                if (trans.type === 'Cash') balance += amount;
+                else if (trans.type === 'Buy' && amount < 0) balance += amount;
+                else if (trans.type === 'Sell' && amount > 0) balance += amount;
+                else if (trans.type === 'Dividend' && amount > 0) balance += amount;
             });
-
             return balance;
         };
 
-        // Icons
         const TrendingUp = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>;
         const Calendar = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>;
         const Upload = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>;
@@ -112,11 +79,8 @@
             useEffect(() => {
                 const saved = localStorage.getItem('portfolioData');
                 if (saved) {
-                    try {
-                        setPortfolioData(JSON.parse(saved));
-                    } catch (e) {
-                        console.error('Failed to parse saved data', e);
-                    }
+                    try { setPortfolioData(JSON.parse(saved)); } 
+                    catch (e) { console.error('Failed to parse saved data', e); }
                 }
             }, []);
 
@@ -147,7 +111,6 @@
                 data.forEach(row => {
                     const accountNum = normalizeAccountNumber(row.Account_Number);
                     if (!accountNum) return;
-
                     const marketValue = parseFloat(row.Market_Value) || 0;
                     const costBasis = parseFloat(row.Cost_Basis) || 0;
                     const quantity = parseFloat(row.Quantity) || 0;
@@ -158,21 +121,16 @@
                         assetClass: row.Asset_Class || '',
                         symbol: row.Symbol || '',
                         description: row.Description || '',
-                        quantity,
-                        price,
-                        marketValue,
-                        costBasis,
+                        quantity, price, marketValue, costBasis,
                         unrealizedGainLoss: parseFloat(row.Unrealized_Gain_Loss) || 0
                     });
 
                     if (!accountsByNumber[accountNum]) {
                         accountsByNumber[accountNum] = { value: 0, costBasis: 0, holdings: 0 };
                     }
-
                     accountsByNumber[accountNum].value += marketValue;
                     accountsByNumber[accountNum].costBasis += costBasis;
                     accountsByNumber[accountNum].holdings += 1;
-
                     totalValue += marketValue;
                     totalCostBasis += costBasis;
                 });
@@ -185,9 +143,7 @@
                 const accountNames = {};
                 const accountTransactions = {};
                 const allTransactions = [];
-                let purchases = 0;
-                let sales = 0;
-                let dividendsReinvested = 0;
+                let purchases = 0, sales = 0, dividendsReinvested = 0;
 
                 data.forEach(row => {
                     const accountNum = normalizeAccountNumber(row['Account Number']);
@@ -200,47 +156,25 @@
                     }
 
                     let type = 'Other';
-                    
-                    if (isHSAAccount(accountName)) {
-                        type = 'HSA';
-                    } else if (action.includes('MARGIN INTEREST') || action.includes('FEE')) {
-                        type = 'Fee';
-                    } else if (action.includes('CONTRIBUTION')) {
-                        type = 'Buy';
-                    } else if (action.includes('REINVESTMENT')) {
-                        type = 'Reinvestment';
-                    } else if (action.includes('DIVIDEND')) {
-                        type = 'Dividend';
-                    } else if (action.includes('YOU BOUGHT') || (amount < 0 && !action.includes('DIVIDEND') && !action.includes('REINVESTMENT') && !action.includes('WIRE') && !action.includes('DEBIT'))) {
-                        type = 'Buy';
-                    } else if (action.includes('YOU SOLD')) {
-                        type = 'Sell';
-                    }
+                    if (isHSAAccount(accountName)) type = 'HSA';
+                    else if (action.includes('MARGIN INTEREST') || action.includes('WIRE TRANSFER') || action.includes('ELECTRONIC FUNDS TRANSFER') || action.includes('FEE')) type = 'Cash';
+                    else if (action.includes('CONTRIBUTION')) type = 'Buy';
+                    else if (action.includes('REINVESTMENT')) type = 'Reinvestment';
+                    else if (action.includes('DIVIDEND')) type = 'Dividend';
+                    else if (action.includes('YOU BOUGHT') || (amount < 0 && !action.includes('DIVIDEND') && !action.includes('REINVESTMENT') && !action.includes('WIRE') && !action.includes('DEBIT'))) type = 'Buy';
+                    else if (action.includes('YOU SOLD')) type = 'Sell';
 
                     allTransactions.push({
-                        date: row['Run Date'] || '',
-                        account: accountName,
-                        accountNumber: accountNum,
-                        action: row.Action || '',
-                        symbol: row.Symbol || '',
-                        description: row.Description || '',
-                        quantity: parseFloat(row.Quantity) || 0,
-                        price: parseFloat(row.Price) || 0,
-                        amount: amount,
-                        type: type
+                        date: row['Run Date'] || '', account: accountName, accountNumber: accountNum,
+                        action: row.Action || '', symbol: row.Symbol || '', description: row.Description || '',
+                        quantity: parseFloat(row.Quantity) || 0, price: parseFloat(row.Price) || 0,
+                        amount: amount, type: type
                     });
 
-                    if (isHSAAccount(accountName) || type === 'Fee') {
-                        return;
-                    }
+                    if (isHSAAccount(accountName) || type === 'Cash') return;
 
                     if (accountNum && !accountTransactions[accountNum]) {
-                        accountTransactions[accountNum] = {
-                            purchases: 0,
-                            sales: 0,
-                            dividendsReinvested: 0,
-                            netInvested: 0
-                        };
+                        accountTransactions[accountNum] = { purchases: 0, sales: 0, dividendsReinvested: 0, netInvested: 0 };
                     }
 
                     if (action.includes('CONTRIBUTION')) {
@@ -268,12 +202,8 @@
                 });
 
                 return {
-                    accountNames,
-                    accountTransactions,
-                    allTransactions,
-                    purchases,
-                    sales,
-                    dividendsReinvested,
+                    accountNames, accountTransactions, allTransactions,
+                    purchases, sales, dividendsReinvested,
                     netInvested: purchases + dividendsReinvested - sales
                 };
             };
@@ -284,38 +214,25 @@
 
                 try {
                     for (const file of files) {
-                        setUploadedFiles(prev => ({
-                            ...prev,
-                            [type]: [...prev[type], file.name]
-                        }));
+                        setUploadedFiles(prev => ({ ...prev, [type]: [...prev[type], file.name] }));
 
                         if (type === '2024') {
                             const holdings2024 = await processHoldingsCSV(file);
                             setPortfolioData(prev => {
-                                const filteredAccounts = {};
-                                const filteredHoldings = [];
-                                let filteredValue = 0;
-                                let filteredCostBasis = 0;
-
+                                const filteredAccounts = {}, filteredHoldings = [];
+                                let filteredValue = 0, filteredCostBasis = 0;
                                 Object.entries(holdings2024.accountsByNumber).forEach(([accountNum, data]) => {
                                     filteredAccounts[accountNum] = data;
                                     filteredValue += data.value;
                                     filteredCostBasis += data.costBasis;
                                 });
-
-                                holdings2024.allHoldings.forEach(holding => {
-                                    filteredHoldings.push(holding);
-                                });
-
+                                holdings2024.allHoldings.forEach(holding => filteredHoldings.push(holding));
                                 return {
                                     ...prev,
                                     holdings2024: {
                                         totalValue: (prev?.holdings2024?.totalValue || 0) + filteredValue,
                                         totalCostBasis: (prev?.holdings2024?.totalCostBasis || 0) + filteredCostBasis,
-                                        accountsByNumber: {
-                                            ...(prev?.holdings2024?.accountsByNumber || {}),
-                                            ...filteredAccounts
-                                        },
+                                        accountsByNumber: { ...(prev?.holdings2024?.accountsByNumber || {}), ...filteredAccounts },
                                         allHoldings: [...(prev?.holdings2024?.allHoldings || []), ...filteredHoldings]
                                     }
                                 };
@@ -323,30 +240,20 @@
                         } else if (type === '2025') {
                             const holdings2025 = await processHoldingsCSV(file);
                             setPortfolioData(prev => {
-                                const filteredAccounts = {};
-                                const filteredHoldings = [];
-                                let filteredValue = 0;
-                                let filteredCostBasis = 0;
-
+                                const filteredAccounts = {}, filteredHoldings = [];
+                                let filteredValue = 0, filteredCostBasis = 0;
                                 Object.entries(holdings2025.accountsByNumber).forEach(([accountNum, data]) => {
                                     filteredAccounts[accountNum] = data;
                                     filteredValue += data.value;
                                     filteredCostBasis += data.costBasis;
                                 });
-
-                                holdings2025.allHoldings.forEach(holding => {
-                                    filteredHoldings.push(holding);
-                                });
-
+                                holdings2025.allHoldings.forEach(holding => filteredHoldings.push(holding));
                                 return {
                                     ...prev,
                                     holdings2025: {
                                         totalValue: (prev?.holdings2025?.totalValue || 0) + filteredValue,
                                         totalCostBasis: (prev?.holdings2025?.totalCostBasis || 0) + filteredCostBasis,
-                                        accountsByNumber: {
-                                            ...(prev?.holdings2025?.accountsByNumber || {}),
-                                            ...filteredAccounts
-                                        },
+                                        accountsByNumber: { ...(prev?.holdings2025?.accountsByNumber || {}), ...filteredAccounts },
                                         allHoldings: [...(prev?.holdings2025?.allHoldings || []), ...filteredHoldings]
                                     }
                                 };
@@ -367,7 +274,6 @@
                             }));
                         }
                     }
-                    
                     event.target.value = '';
                 } catch (error) {
                     alert(`Error processing ${type} files: ${error.message}`);
@@ -393,18 +299,9 @@
                 }
             };
 
-            const formatCurrency = (value) => {
-                return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(value);
-            };
-
-            const formatPercent = (value) => {
-                return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
-            };
-
-            const formatNumber = (value) => {
-                if (Math.abs(value) >= 1000) return (value / 1000).toFixed(1) + 'K';
-                return value.toFixed(0);
-            };
+            const formatCurrency = (value) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(value);
+            const formatPercent = (value) => `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
+            const formatNumber = (value) => Math.abs(value) >= 1000 ? (value / 1000).toFixed(1) + 'K' : value.toFixed(0);
 
             const filteredTransactions = portfolioData?.allTransactions?.filter(trans => {
                 if (transactionFilter === 'All') return true;
@@ -416,9 +313,7 @@
                 const filtered = {};
                 Object.entries(accountsByNumber).forEach(([accountNum, data]) => {
                     const accountName = portfolioData?.accountNames?.[accountNum];
-                    if (!isHSAAccount(accountName)) {
-                        filtered[accountNum] = data;
-                    }
+                    if (!isHSAAccount(accountName)) filtered[accountNum] = data;
                 });
                 return filtered;
             };
@@ -431,7 +326,6 @@
                 });
             };
 
-            // Calculate cash/margin balances
             const cashBalance2024 = calculateCashBalance(portfolioData?.allTransactions, '2024-12-31');
             const cashBalance2025 = calculateCashBalance(portfolioData?.allTransactions, '2025-12-31');
 
@@ -456,6 +350,50 @@
 
             const nonHSAAccounts2025 = getNonHSAAccounts(portfolioData?.holdings2025?.accountsByNumber);
             const nonHSAAccounts2024 = getNonHSAAccounts(portfolioData?.holdings2024?.accountsByNumber);
+
+            const calculateWaterfallData = () => {
+                if (!portfolioData?.allTransactions) return [];
+                
+                const start2024 = startValue;
+                const end2025 = endValue;
+                
+                const cashFlowTransactions = portfolioData.allTransactions.filter(t => 
+                    t.type === 'Cash' && t.date && new Date(t.date).getFullYear() === 2025
+                );
+                const netCashFlow = cashFlowTransactions.reduce((sum, t) => sum + (t.amount || 0), 0);
+                
+                const dividendTransactions = portfolioData.allTransactions.filter(t => 
+                    t.type === 'Dividend' && t.date && new Date(t.date).getFullYear() === 2025
+                );
+                const totalDividends = dividendTransactions.reduce((sum, t) => sum + (t.amount || 0), 0);
+                
+                const netStockPurchases = -(portfolioData.transactions2025?.purchases || 0) + (portfolioData.transactions2025?.sales || 0);
+                const marketAppreciation = end2025 - (start2024 + netCashFlow + totalDividends + netStockPurchases);
+                
+                let cumulative = 0;
+                const data = [];
+                
+                data.push({ name: '2024 Start', value: start2024, start: 0, end: start2024, cumulative: start2024, type: 'anchor', fill: '#3b82f6' });
+                cumulative = start2024;
+                
+                data.push({ name: 'Net Cash Flow', value: netCashFlow, start: cumulative, end: cumulative + netCashFlow, cumulative: cumulative + netCashFlow, type: 'step', fill: netCashFlow >= 0 ? '#10b981' : '#ef4444' });
+                cumulative += netCashFlow;
+                
+                data.push({ name: 'Dividends', value: totalDividends, start: cumulative, end: cumulative + totalDividends, cumulative: cumulative + totalDividends, type: 'step', fill: totalDividends >= 0 ? '#10b981' : '#ef4444' });
+                cumulative += totalDividends;
+                
+                data.push({ name: 'Net Purchases', value: netStockPurchases, start: cumulative, end: cumulative + netStockPurchases, cumulative: cumulative + netStockPurchases, type: 'step', fill: netStockPurchases >= 0 ? '#10b981' : '#ef4444' });
+                cumulative += netStockPurchases;
+                
+                data.push({ name: 'Market Gain', value: marketAppreciation, start: cumulative, end: cumulative + marketAppreciation, cumulative: cumulative + marketAppreciation, type: 'step', fill: marketAppreciation >= 0 ? '#10b981' : '#ef4444' });
+                cumulative += marketAppreciation;
+                
+                data.push({ name: '2025 End', value: end2025, start: 0, end: end2025, cumulative: end2025, type: 'anchor', fill: '#3b82f6' });
+                
+                return data;
+            };
+
+            const waterfallData = calculateWaterfallData();
 
             return (
                 <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100">
@@ -530,11 +468,11 @@
                                             <span className="font-semibold text-slate-300">Cash/Margin Balance Tracking:</span> Starting balance is set to <span className="text-cyan-400 font-mono">{formatCurrency(STARTING_CASH_BALANCE)}</span>
                                         </div>
                                         <div className="text-xs text-slate-500">
-                                            To change: Edit <code className="bg-slate-900 px-2 py-1 rounded text-cyan-400">STARTING_CASH_BALANCE</code> at the top of the code. Fees are deducted from cash balance.
+                                            "Cash" type includes: margin interest, wire transfers, electronic funds transfers. To change starting balance: Edit <code className="bg-slate-900 px-2 py-1 rounded text-cyan-400">STARTING_CASH_BALANCE</code> at the top of the code.
                                         </div>
                                     </div>
                                     <p className="text-xs text-slate-500">
-                                        Select one or multiple CSV files. <span className="text-amber-400">HSA accounts and fees are excluded from investment calculations.</span> Cash and margin balances are calculated automatically from transactions.
+                                        Select one or multiple CSV files. <span className="text-amber-400">HSA accounts excluded from calculations.</span> Cash balance tracks all deposits, withdrawals, and margin interest automatically.
                                     </p>
                                 </div>
                             )}
@@ -548,11 +486,10 @@
                             </div>
                         ) : (
                             <>
-                                {/* Cash/Margin Balance Indicator */}
                                 <div className="mb-6 bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-xl p-4">
                                     <div className="flex items-center justify-between">
                                         <div>
-                                            <div className="text-xs text-slate-500 mb-1">CALCULATED CASH/MARGIN BALANCE (incl. fees)</div>
+                                            <div className="text-xs text-slate-500 mb-1">CALCULATED CASH/MARGIN BALANCE</div>
                                             <div className="flex items-center gap-4">
                                                 <div>
                                                     <span className="text-xs text-slate-400">2024: </span>
@@ -572,6 +509,7 @@
                                             <div className="text-xs text-slate-500">
                                                 {cashBalance2025 >= 0 ? '💰 Cash Position' : '📊 Margin Loan'}
                                             </div>
+                                            <div className="text-xs text-slate-600 mt-1">Incl. deposits, withdrawals, interest</div>
                                         </div>
                                     </div>
                                 </div>
@@ -621,7 +559,6 @@
                                                 <span className="text-xs text-slate-500 font-normal">(HSA excluded)</span>
                                             </h2>
                                             <div className="space-y-4">
-                                                {/* Cash/Margin as first entry if significant */}
                                                 {Math.abs(cashBalance2025) > 100 && (
                                                     <div className="bg-slate-800/50 rounded-xl p-5 border border-slate-700 hover:border-slate-600 transition-all">
                                                         <div className="flex justify-between items-start mb-3">
@@ -629,7 +566,7 @@
                                                                 <h3 className="font-semibold text-lg text-slate-200">
                                                                     {cashBalance2025 >= 0 ? '💵 Cash Balance' : '📊 Margin Loan'}
                                                                 </h3>
-                                                                <p className="text-sm text-slate-500">Calculated from transactions (incl. fees)</p>
+                                                                <p className="text-sm text-slate-500">Deposits, withdrawals, interest</p>
                                                             </div>
                                                             <div className="text-right">
                                                                 <div className={`text-xl font-bold ${cashBalance2025 >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
@@ -720,6 +657,9 @@
                                         </div>
 
                                         <div className="flex gap-2 bg-slate-900/50 p-2 rounded-xl border border-slate-800">
+                                            <button onClick={() => setSubTab('performance')} className={`px-4 py-2 rounded-lg font-medium transition-all ${subTab === 'performance' ? 'bg-slate-800 text-slate-100' : 'text-slate-400 hover:text-slate-200'}`}>
+                                                Performance Bridge
+                                            </button>
                                             <button onClick={() => setSubTab('byaccount')} className={`px-4 py-2 rounded-lg font-medium transition-all ${subTab === 'byaccount' ? 'bg-slate-800 text-slate-100' : 'text-slate-400 hover:text-slate-200'}`}>
                                                 By Account
                                             </button>
@@ -731,199 +671,58 @@
                                             </button>
                                         </div>
 
-                                        {subTab === 'byaccount' && (
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fadeIn">
-                                                {Object.entries(nonHSAAccounts2025).map(([accountNum, account2025]) => {
-                                                    const accountName = portfolioData.accountNames?.[accountNum] || accountNum;
-                                                    const account2024 = nonHSAAccounts2024[accountNum] || { value: 0 };
-                                                    const acctTrans = portfolioData.accountTransactions?.[accountNum] || { netInvested: 0 };
-                                                    const accountMarketGain = account2025.value - (account2024.value + acctTrans.netInvested);
-                                                    const accountROIC = (account2024.value + acctTrans.netInvested) > 0 
-                                                        ? (accountMarketGain / (account2024.value + acctTrans.netInvested)) * 100 
-                                                        : 0;
-
-                                                    return (
-                                                        <div key={accountNum} className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-2xl p-6">
-                                                            <div className="flex justify-between items-start mb-4">
-                                                                <div>
-                                                                    <h3 className="font-semibold text-xl text-slate-200">{accountName}</h3>
-                                                                    <p className="text-xs text-slate-500">{accountNum}</p>
-                                                                </div>
-                                                                <div className="text-right">
-                                                                    <div className="text-2xl font-bold text-slate-100">{formatCurrency(account2025.value)}</div>
-                                                                    <div className={`text-sm font-semibold ${accountROIC >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                                                        {accountROIC >= 0 ? '▲' : '▼'} {Math.abs(accountROIC).toFixed(2)}% ROIC
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-
-                                                            <div className="grid grid-cols-4 gap-4 text-center">
-                                                                <div>
-                                                                    <div className="text-xs text-slate-500 mb-1">HOLDINGS</div>
-                                                                    <div className="font-semibold text-slate-200">{account2025.holdings}</div>
-                                                                </div>
-                                                                <div>
-                                                                    <div className="text-xs text-slate-500 mb-1">START '24</div>
-                                                                    <div className="font-semibold text-slate-200">{formatNumber(account2024.value)}</div>
-                                                                </div>
-                                                                <div>
-                                                                    <div className="text-xs text-slate-500 mb-1">NET INV '25</div>
-                                                                    <div className="font-semibold text-slate-200">{formatNumber(acctTrans.netInvested)}</div>
-                                                                </div>
-                                                                <div>
-                                                                    <div className="text-xs text-slate-500 mb-1">MARKET GAIN</div>
-                                                                    <div className={`font-semibold ${accountMarketGain >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                                                        {formatNumber(accountMarketGain)}
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-                                        )}
-
-                                        {subTab === 'allholdings' && (
+                                        {subTab === 'performance' && (
                                             <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-2xl p-8 animate-fadeIn">
                                                 <h2 className="text-xl font-bold mb-6">
-                                                    All Holdings ({nonHSAHoldings2025.length} positions + Cash/Margin)
-                                                    <span className="text-xs text-slate-500 font-normal ml-2">(HSA excluded)</span>
+                                                    2025 Performance Bridge
+                                                    <span className="text-xs text-slate-500 font-normal ml-2">How did we get from 2024 to 2025?</span>
                                                 </h2>
-                                                <div className="overflow-x-auto">
-                                                    <table className="w-full text-sm">
-                                                        <thead className="border-b border-slate-700">
-                                                            <tr className="text-slate-400">
-                                                                <th className="text-left py-3 px-2">Account</th>
-                                                                <th className="text-left py-3 px-2">Symbol</th>
-                                                                <th className="text-left py-3 px-2">Description</th>
-                                                                <th className="text-left py-3 px-2">Type</th>
-                                                                <th className="text-right py-3 px-2">Quantity</th>
-                                                                <th className="text-right py-3 px-2">Price</th>
-                                                                <th className="text-right py-3 px-2">Market Value</th>
-                                                                <th className="text-right py-3 px-2">Cost Basis</th>
-                                                                <th className="text-right py-3 px-2">Gain/Loss</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody>
-                                                            {/* Cash/Margin as first row */}
-                                                            {Math.abs(cashBalance2025) > 1 && (
-                                                                <tr className="border-b border-slate-800/50 bg-slate-800/30">
-                                                                    <td className="py-3 px-2 text-slate-300">All Accounts</td>
-                                                                    <td className="py-3 px-2 font-semibold text-slate-200">
-                                                                        {cashBalance2025 >= 0 ? 'CASH' : 'MARGIN'}
-                                                                    </td>
-                                                                    <td className="py-3 px-2 text-slate-400 text-xs">
-                                                                        {cashBalance2025 >= 0 ? 'Cash Balance (incl. fees)' : 'Margin Loan Balance (incl. fees)'}
-                                                                    </td>
-                                                                    <td className="py-3 px-2 text-slate-400 text-xs">
-                                                                        {cashBalance2025 >= 0 ? 'Cash' : 'Liability'}
-                                                                    </td>
-                                                                    <td className="py-3 px-2 text-right text-slate-300">-</td>
-                                                                    <td className="py-3 px-2 text-right text-slate-300">-</td>
-                                                                    <td className={`py-3 px-2 text-right font-semibold ${cashBalance2025 >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                                                        {formatCurrency(cashBalance2025)}
-                                                                    </td>
-                                                                    <td className="py-3 px-2 text-right text-slate-400">-</td>
-                                                                    <td className="py-3 px-2 text-right text-slate-400">-</td>
-                                                                </tr>
-                                                            )}
-
-                                                            {nonHSAHoldings2025.map((holding, idx) => {
-                                                                const accountName = portfolioData.accountNames?.[holding.accountNumber] || holding.accountNumber;
-                                                                return (
-                                                                    <tr key={idx} className="border-b border-slate-800/50 hover:bg-slate-800/30">
-                                                                        <td className="py-3 px-2 text-slate-300">{accountName}</td>
-                                                                        <td className="py-3 px-2 font-semibold text-slate-200">{holding.symbol}</td>
-                                                                        <td className="py-3 px-2 text-slate-400 text-xs">{holding.description}</td>
-                                                                        <td className="py-3 px-2 text-slate-400 text-xs">{holding.assetClass}</td>
-                                                                        <td className="py-3 px-2 text-right text-slate-300">{holding.quantity.toFixed(3)}</td>
-                                                                        <td className="py-3 px-2 text-right text-slate-300">{formatCurrency(holding.price)}</td>
-                                                                        <td className="py-3 px-2 text-right font-semibold text-slate-200">{formatCurrency(holding.marketValue)}</td>
-                                                                        <td className="py-3 px-2 text-right text-slate-400">{formatCurrency(holding.costBasis)}</td>
-                                                                        <td className={`py-3 px-2 text-right font-semibold ${holding.unrealizedGainLoss >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                                                            {formatCurrency(holding.unrealizedGainLoss)}
-                                                                        </td>
-                                                                    </tr>
-                                                                );
-                                                            })}
-                                                        </tbody>
-                                                    </table>
+                                                
+                                                <div className="grid grid-cols-4 gap-4 mb-8">
+                                                    {waterfallData.filter(d => d.type === 'step').map((step, idx) => (
+                                                        <div key={idx} className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
+                                                            <div className="text-xs text-slate-400 mb-1">{step.name.toUpperCase()}</div>
+                                                            <div className={`text-xl font-bold ${step.value >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                                {formatCurrency(step.value)}
+                                                            </div>
+                                                            <div className="text-xs text-slate-500 mt-1">
+                                                                {step.value >= 0 ? '▲' : '▼'} {Math.abs((step.value / startValue) * 100).toFixed(1)}%
+                                                            </div>
+                                                        </div>
+                                                    ))}
                                                 </div>
-                                            </div>
-                                        )}
 
-                                        {subTab === 'transactions' && (
-                                            <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-2xl p-8 animate-fadeIn">
-                                                <div className="flex justify-between items-center mb-6">
-                                                    <h2 className="text-xl font-bold">All Transactions ({filteredTransactions.length} of {portfolioData?.allTransactions?.length || 0})</h2>
-                                                    <div className="flex gap-2">
-                                                        {['All', 'Buy', 'Sell', 'Dividend', 'Reinvestment', 'Fee', 'HSA', 'Other'].map(type => {
-                                                            let buttonClass = 'px-3 py-1.5 rounded-lg text-sm font-medium transition-all';
-                                                            if (transactionFilter === type) {
-                                                                if (type === 'Buy') buttonClass += ' bg-blue-900/50 text-blue-400 border border-blue-600/50';
-                                                                else if (type === 'Sell') buttonClass += ' bg-red-900/50 text-red-400 border border-red-600/50';
-                                                                else if (type === 'Dividend') buttonClass += ' bg-green-900/50 text-green-400 border border-green-600/50';
-                                                                else if (type === 'Reinvestment') buttonClass += ' bg-purple-900/50 text-purple-400 border border-purple-600/50';
-                                                                else if (type === 'Fee') buttonClass += ' bg-orange-900/50 text-orange-400 border border-orange-600/50';
-                                                                else if (type === 'HSA') buttonClass += ' bg-amber-900/50 text-amber-400 border border-amber-600/50';
-                                                                else buttonClass += ' bg-slate-700 text-slate-100 border border-slate-600';
-                                                            } else {
-                                                                buttonClass += ' bg-slate-800/50 text-slate-400 hover:text-slate-200 border border-slate-700/50';
-                                                            }
-                                                            
-                                                            return (
-                                                                <button key={type} onClick={() => setTransactionFilter(type)} className={buttonClass}>
-                                                                    {type}
-                                                                </button>
-                                                            );
-                                                        })}
+                                                <div className="bg-slate-800/30 rounded-lg p-6">
+                                                    <div style={{ width: '100%', height: 400 }}>
+                                                        <ResponsiveContainer width="100%" height="100%">
+                                                            <BarChart data={waterfallData}>
+                                                                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                                                                <XAxis dataKey="name" stroke="#94a3b8" style={{ fontSize: '12px' }} />
+                                                                <YAxis stroke="#94a3b8" style={{ fontSize: '12px' }} tickFormatter={(value) => `$${(value / 1000).toFixed(0)}K`} />
+                                                                <Tooltip 
+                                                                    contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px' }}
+                                                                    labelStyle={{ color: '#e2e8f0' }}
+                                                                    formatter={(value) => [formatCurrency(value), 'Amount']}
+                                                                />
+                                                                <Bar dataKey="start" stackId="a" fill="transparent" />
+                                                                <Bar dataKey={(data) => data.end - data.start} stackId="a">
+                                                                    {waterfallData.map((entry, index) => (
+                                                                        <Cell key={`cell-${index}`} fill={entry.fill} />
+                                                                    ))}
+                                                                </Bar>
+                                                            </BarChart>
+                                                        </ResponsiveContainer>
                                                     </div>
                                                 </div>
-                                                <div className="overflow-x-auto">
-                                                    <table className="w-full text-sm">
-                                                        <thead className="border-b border-slate-700">
-                                                            <tr className="text-slate-400">
-                                                                <th className="text-left py-3 px-2">Date</th>
-                                                                <th className="text-left py-3 px-2">Account</th>
-                                                                <th className="text-left py-3 px-2">Type</th>
-                                                                <th className="text-left py-3 px-2">Symbol</th>
-                                                                <th className="text-left py-3 px-2">Action</th>
-                                                                <th className="text-right py-3 px-2">Quantity</th>
-                                                                <th className="text-right py-3 px-2">Price</th>
-                                                                <th className="text-right py-3 px-2">Amount</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody>
-                                                            {filteredTransactions.map((trans, idx) => {
-                                                                let typeColor = 'bg-slate-700 text-slate-300';
-                                                                if (trans.type === 'Buy') typeColor = 'bg-blue-900/50 text-blue-400';
-                                                                else if (trans.type === 'Sell') typeColor = 'bg-red-900/50 text-red-400';
-                                                                else if (trans.type === 'Dividend') typeColor = 'bg-green-900/50 text-green-400';
-                                                                else if (trans.type === 'Reinvestment') typeColor = 'bg-purple-900/50 text-purple-400';
-                                                                else if (trans.type === 'Fee') typeColor = 'bg-orange-900/50 text-orange-400';
-                                                                else if (trans.type === 'HSA') typeColor = 'bg-amber-900/50 text-amber-400';
 
-                                                                return (
-                                                                    <tr key={idx} className="border-b border-slate-800/50 hover:bg-slate-800/30">
-                                                                        <td className="py-3 px-2 text-slate-400 text-xs">{trans.date}</td>
-                                                                        <td className="py-3 px-2 text-slate-300 text-xs">{trans.account}</td>
-                                                                        <td className="py-3 px-2">
-                                                                            <span className={`px-2 py-1 rounded text-xs font-semibold ${typeColor}`}>
-                                                                                {trans.type}
-                                                                            </span>
-                                                                        </td>
-                                                                        <td className="py-3 px-2 font-semibold text-slate-200">{trans.symbol}</td>
-                                                                        <td className="py-3 px-2 text-slate-400 text-xs">{trans.action}</td>
-                                                                        <td className="py-3 px-2 text-right text-slate-300">{trans.quantity > 0 ? trans.quantity.toFixed(3) : '-'}</td>
-                                                                        <td className="py-3 px-2 text-right text-slate-300">{trans.price > 0 ? formatCurrency(trans.price) : '-'}</td>
-                                                                        <td className={`py-3 px-2 text-right font-semibold ${trans.amount >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                                                            {formatCurrency(trans.amount)}
-                                                                        </td>
-                                                                    </tr>
-                                                                );
-                                                            })}
-                                                        </tbody>
-                                                    </table>
+                                                <div className="mt-6 bg-slate-800/30 rounded-lg p-4 border border-slate-700">
+                                                    <h3 className="text-sm font-semibold text-slate-300 mb-2">📊 Understanding the Performance Bridge</h3>
+                                                    <div className="text-xs text-slate-400 space-y-1">
+                                                        <p>• <strong>Net Cash Flow:</strong> Deposits, withdrawals, and margin interest (Cash type transactions)</p>
+                                                        <p>• <strong>Dividends:</strong> Cash dividends received (not reinvested)</p>
+                                                        <p>• <strong>Net Purchases:</strong> Money deployed into stocks (purchases - sales)</p>
+                                                        <p>• <strong>Market Gain:</strong> Portfolio appreciation from price changes</p>
+                                                    </div>
                                                 </div>
                                             </div>
                                         )}
