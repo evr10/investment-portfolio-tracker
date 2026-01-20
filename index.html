@@ -45,7 +45,7 @@
 
         const PortfolioDashboard = () => {
             const [activeTab, setActiveTab] = useState('alltime');
-            const [subTab, setSubTab] = useState('byaccount'); // byaccount, allholdings, transactions
+            const [subTab, setSubTab] = useState('byaccount');
             const [showImport, setShowImport] = useState(false);
             const [portfolioData, setPortfolioData] = useState(null);
             
@@ -55,11 +55,19 @@
 
             useEffect(() => {
                 const saved = localStorage.getItem('portfolioData');
-                if (saved) setPortfolioData(JSON.parse(saved));
+                if (saved) {
+                    try {
+                        setPortfolioData(JSON.parse(saved));
+                    } catch (e) {
+                        console.error('Failed to parse saved data', e);
+                    }
+                }
             }, []);
 
             useEffect(() => {
-                if (portfolioData) localStorage.setItem('portfolioData', JSON.stringify(portfolioData));
+                if (portfolioData) {
+                    localStorage.setItem('portfolioData', JSON.stringify(portfolioData));
+                }
             }, [portfolioData]);
 
             const parseCSV = (file) => {
@@ -119,7 +127,6 @@
                         accountNames[accountNum] = accountName;
                     }
 
-                    // Initialize account transactions
                     if (accountNum && !accountTransactions[accountNum]) {
                         accountTransactions[accountNum] = {
                             purchases: 0,
@@ -144,7 +151,6 @@
                     }
                 });
 
-                // Calculate net invested per account
                 Object.keys(accountTransactions).forEach(accountNum => {
                     const acct = accountTransactions[accountNum];
                     acct.netInvested = acct.purchases + acct.dividendsReinvested - acct.sales;
@@ -216,7 +222,7 @@
             };
 
             const formatNumber = (value) => {
-                if (value >= 1000) return (value / 1000).toFixed(1) + 'K';
+                if (Math.abs(value) >= 1000) return (value / 1000).toFixed(1) + 'K';
                 return value.toFixed(0);
             };
 
@@ -237,7 +243,6 @@
 
             return (
                 <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100">
-                    {/* Header */}
                     <div className="border-b border-slate-800 bg-slate-950/50 backdrop-blur-sm sticky top-0 z-50">
                         <div className="max-w-7xl mx-auto px-8 py-4 flex items-center justify-between">
                             <div className="flex items-center gap-3">
@@ -265,7 +270,6 @@
                     </div>
 
                     <div className="max-w-7xl mx-auto p-8">
-                        {/* Import Section */}
                         <div className="mb-8">
                             <button onClick={() => setShowImport(!showImport)} className="w-full bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-2xl p-6 hover:border-slate-700 transition-all flex items-center justify-between">
                                 <div className="flex items-center gap-3">
@@ -303,7 +307,6 @@
                             </div>
                         ) : (
                             <>
-                                {/* Main Tabs */}
                                 <div className="flex gap-4 mb-8 border-b border-slate-800 pb-1">
                                     <button onClick={() => setActiveTab('alltime')} className={`px-6 py-3 font-semibold text-lg transition-all duration-300 relative ${activeTab === 'alltime' ? 'text-emerald-400' : 'text-slate-500 hover:text-slate-300'}`}>
                                         <span className="inline-flex items-center gap-2"><TrendingUp />All-Time Performance</span>
@@ -315,7 +318,6 @@
                                     </button>
                                 </div>
 
-                                {/* All-Time Tab */}
                                 {activeTab === 'alltime' && (
                                     <div className="space-y-6 animate-fadeIn">
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -343,7 +345,7 @@
                                         <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-2xl p-8">
                                             <h2 className="text-2xl font-bold mb-6 flex items-center gap-3"><PieChart />Holdings Breakdown</h2>
                                             <div className="space-y-4">
-                                                {Object.entries(portfolioData.holdings2025.accountsByNumber).map(([accountNum, account]) => {
+                                                {portfolioData?.holdings2025?.accountsByNumber && Object.entries(portfolioData.holdings2025.accountsByNumber).map(([accountNum, account]) => {
                                                     const accountName = portfolioData.accountNames?.[accountNum] || accountNum;
                                                     const accountGain = account.value - account.costBasis;
                                                     const accountGainPct = account.costBasis > 0 ? (accountGain / account.costBasis) * 100 : 0;
@@ -376,10 +378,8 @@
                                     </div>
                                 )}
 
-                                {/* 2025 Tab */}
                                 {activeTab === '2025' && (
                                     <div className="space-y-6 animate-fadeIn">
-                                        {/* Top Metrics */}
                                         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
                                             <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-xl p-4">
                                                 <div className="text-slate-400 text-xs font-medium mb-1">TOTAL PORTFOLIO VALUE</div>
@@ -414,7 +414,6 @@
                                             </div>
                                         </div>
 
-                                        {/* Sub-tabs */}
                                         <div className="flex gap-2 bg-slate-900/50 p-2 rounded-xl border border-slate-800">
                                             <button onClick={() => setSubTab('byaccount')} className={`px-4 py-2 rounded-lg font-medium transition-all ${subTab === 'byaccount' ? 'bg-slate-800 text-slate-100' : 'text-slate-400 hover:text-slate-200'}`}>
                                                 By Account
@@ -427,10 +426,9 @@
                                             </button>
                                         </div>
 
-                                        {/* By Account View */}
                                         {subTab === 'byaccount' && (
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fadeIn">
-                                                {Object.entries(portfolioData.holdings2025.accountsByNumber).map(([accountNum, account2025]) => {
+                                                {portfolioData?.holdings2025?.accountsByNumber && Object.entries(portfolioData.holdings2025.accountsByNumber).map(([accountNum, account2025]) => {
                                                     const accountName = portfolioData.accountNames?.[accountNum] || accountNum;
                                                     const account2024 = portfolioData.holdings2024?.accountsByNumber?.[accountNum] || { value: 0 };
                                                     const acctTrans = portfolioData.accountTransactions?.[accountNum] || { netInvested: 0 };
@@ -480,21 +478,19 @@
                                             </div>
                                         )}
 
-                                        {/* All Holdings View */}
                                         {subTab === 'allholdings' && (
                                             <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-2xl p-8 animate-fadeIn">
                                                 <h2 className="text-xl font-bold mb-4">All Holdings Summary</h2>
-                                                <p className="text-slate-400">This view would show all individual holdings across all accounts. Upload holdings CSV to see detailed breakdown.</p>
+                                                <p className="text-slate-400">This view would show all individual holdings across all accounts.</p>
                                             </div>
                                         )}
 
-                                        {/* Transactions View */}
                                         {subTab === 'transactions' && (
                                             <div className="space-y-6 animate-fadeIn">
                                                 <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-2xl p-8">
                                                     <h2 className="text-xl font-bold mb-6">2025 Transaction Breakdown</h2>
                                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                                        {Object.entries(portfolioData.accountTransactions || {}).map(([accountNum, trans]) => {
+                                                        {portfolioData?.accountTransactions && Object.entries(portfolioData.accountTransactions).map(([accountNum, trans]) => {
                                                             const accountName = portfolioData.accountNames?.[accountNum] || accountNum;
                                                             
                                                             return (
