@@ -51,10 +51,13 @@
                 // Skip HSA transactions
                 if (trans.type === 'HSA') return;
 
+                // Skip if no date
+                if (!trans.date) return;
+
                 const transDate = new Date(trans.date);
                 if (transDate > cutoff) return;
 
-                const action = trans.action.toUpperCase();
+                const action = (trans.action || '').toUpperCase();
                 const amount = trans.amount || 0;
 
                 // Cash inflows (+)
@@ -77,8 +80,8 @@
                 else if (trans.type === 'Dividend' && amount > 0) {
                     balance += amount;
                 }
-                // Fees reduce cash
-                else if (trans.type === 'Fee' && amount < 0) {
+                // Fees reduce cash (margin interest, etc.)
+                else if (trans.type === 'Fee') {
                     balance += amount; // Amount is already negative
                 }
             });
@@ -152,9 +155,9 @@
 
                     allHoldings.push({
                         accountNumber: accountNum,
-                        assetClass: row.Asset_Class,
-                        symbol: row.Symbol,
-                        description: row.Description,
+                        assetClass: row.Asset_Class || '',
+                        symbol: row.Symbol || '',
+                        description: row.Description || '',
                         quantity,
                         price,
                         marketValue,
@@ -188,7 +191,7 @@
 
                 data.forEach(row => {
                     const accountNum = normalizeAccountNumber(row['Account Number']);
-                    const accountName = row.Account;
+                    const accountName = row.Account || '';
                     const action = (row.Action || '').toUpperCase();
                     const amount = parseFloat(row.Amount) || 0;
 
@@ -215,10 +218,10 @@
                     }
 
                     allTransactions.push({
-                        date: row['Run Date'],
+                        date: row['Run Date'] || '',
                         account: accountName,
                         accountNumber: accountNum,
-                        action: row.Action,
+                        action: row.Action || '',
                         symbol: row.Symbol || '',
                         description: row.Description || '',
                         quantity: parseFloat(row.Quantity) || 0,
@@ -527,11 +530,11 @@
                                             <span className="font-semibold text-slate-300">Cash/Margin Balance Tracking:</span> Starting balance is set to <span className="text-cyan-400 font-mono">{formatCurrency(STARTING_CASH_BALANCE)}</span>
                                         </div>
                                         <div className="text-xs text-slate-500">
-                                            To change: Edit <code className="bg-slate-900 px-2 py-1 rounded text-cyan-400">STARTING_CASH_BALANCE</code> at the top of the code.
+                                            To change: Edit <code className="bg-slate-900 px-2 py-1 rounded text-cyan-400">STARTING_CASH_BALANCE</code> at the top of the code. Fees are deducted from cash balance.
                                         </div>
                                     </div>
                                     <p className="text-xs text-slate-500">
-                                        Select one or multiple CSV files. <span className="text-amber-400">HSA accounts and fees are excluded from calculations.</span> Cash and margin balances are calculated automatically from transactions.
+                                        Select one or multiple CSV files. <span className="text-amber-400">HSA accounts and fees are excluded from investment calculations.</span> Cash and margin balances are calculated automatically from transactions.
                                     </p>
                                 </div>
                             )}
@@ -549,7 +552,7 @@
                                 <div className="mb-6 bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-xl p-4">
                                     <div className="flex items-center justify-between">
                                         <div>
-                                            <div className="text-xs text-slate-500 mb-1">CALCULATED CASH/MARGIN BALANCE</div>
+                                            <div className="text-xs text-slate-500 mb-1">CALCULATED CASH/MARGIN BALANCE (incl. fees)</div>
                                             <div className="flex items-center gap-4">
                                                 <div>
                                                     <span className="text-xs text-slate-400">2024: </span>
@@ -626,7 +629,7 @@
                                                                 <h3 className="font-semibold text-lg text-slate-200">
                                                                     {cashBalance2025 >= 0 ? '💵 Cash Balance' : '📊 Margin Loan'}
                                                                 </h3>
-                                                                <p className="text-sm text-slate-500">Calculated from transactions</p>
+                                                                <p className="text-sm text-slate-500">Calculated from transactions (incl. fees)</p>
                                                             </div>
                                                             <div className="text-right">
                                                                 <div className={`text-xl font-bold ${cashBalance2025 >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
@@ -635,7 +638,7 @@
                                                             </div>
                                                         </div>
                                                         <div className="relative h-2 bg-slate-700/50 rounded-full overflow-hidden">
-                                                            <div className={`absolute h-full rounded-full transition-all duration-500 ${cashBalance2025 >= 0 ? 'bg-gradient-to-r from-emerald-400 to-cyan-400' : 'bg-gradient-to-r from-red-500 to-orange-500'}`} style={{ width: `${Math.min(Math.abs(cashBalance2025) / currentValue * 100, 100)}%` }} />
+                                                            <div className={`absolute h-full rounded-full transition-all duration-500 ${cashBalance2025 >= 0 ? 'bg-gradient-to-r from-emerald-400 to-cyan-400' : 'bg-gradient-to-r from-red-500 to-orange-500'}`} style={{ width: `${Math.min(Math.abs(cashBalance2025) / Math.abs(currentValue) * 100, 100)}%` }} />
                                                         </div>
                                                         <div className="text-xs text-slate-500 mt-2">
                                                             {cashBalance2025 >= 0 
@@ -810,7 +813,7 @@
                                                                         {cashBalance2025 >= 0 ? 'CASH' : 'MARGIN'}
                                                                     </td>
                                                                     <td className="py-3 px-2 text-slate-400 text-xs">
-                                                                        {cashBalance2025 >= 0 ? 'Cash Balance' : 'Margin Loan Balance'}
+                                                                        {cashBalance2025 >= 0 ? 'Cash Balance (incl. fees)' : 'Margin Loan Balance (incl. fees)'}
                                                                     </td>
                                                                     <td className="py-3 px-2 text-slate-400 text-xs">
                                                                         {cashBalance2025 >= 0 ? 'Cash' : 'Liability'}
