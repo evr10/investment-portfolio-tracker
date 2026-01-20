@@ -403,7 +403,7 @@
                 );
                 const totalDividends = dividendTransactions.reduce((sum, t) => sum + (t.amount || 0), 0);
                 
-                const netStockPurchases = -(portfolioData.transactions2025?.purchases || 0) + (portfolioData.transactions2025?.sales || 0);
+                const netStockPurchases = (portfolioData.transactions2025?.purchases || 0) - (portfolioData.transactions2025?.sales || 0);
                 const marketAppreciation = end2025 - (start2024 + netCashFlow + totalDividends + netStockPurchases);
                 
                 let cumulative = 0;
