@@ -3,680 +3,458 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Portfolio Tracker</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <title>Portfolio Analytics Dashboard</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.263.1/lucide.min.css">
     <style>
-        :root {
-            --bg-deep: #0a0a0f;
-            --bg-card: #12121a;
-            --bg-elevated: #1a1a25;
-            --border: #2a2a3a;
-            --text-primary: #f0f0f5;
-            --text-secondary: #9090a0;
-            --text-muted: #606070;
-            --accent-green: #00d47e;
-            --accent-green-dim: rgba(0, 212, 126, 0.15);
-            --accent-red: #ff4757;
-            --accent-red-dim: rgba(255, 71, 87, 0.15);
-            --accent-blue: #4dabf7;
-            --accent-blue-dim: rgba(77, 171, 247, 0.15);
-            --accent-gold: #ffd43b;
-            --accent-gold-dim: rgba(255, 212, 59, 0.15);
-            --accent-purple: #9775fa;
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap');
+        
+        * {
+            font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
         }
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'DM Sans', -apple-system, sans-serif; background: var(--bg-deep); color: var(--text-primary); min-height: 100vh; line-height: 1.5; }
-        .mono { font-family: 'JetBrains Mono', monospace; }
-        header { background: linear-gradient(180deg, var(--bg-card) 0%, var(--bg-deep) 100%); border-bottom: 1px solid var(--border); padding: 1.5rem 2rem; position: sticky; top: 0; z-index: 100; backdrop-filter: blur(20px); }
-        .header-content { max-width: 1800px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; }
-        .logo { display: flex; align-items: center; gap: 0.75rem; }
-        .logo-icon { width: 36px; height: 36px; background: linear-gradient(135deg, var(--accent-green) 0%, var(--accent-blue) 100%); border-radius: 8px; display: flex; align-items: center; justify-content: center; }
-        .logo-icon svg { width: 20px; height: 20px; color: var(--bg-deep); }
-        h1 { font-size: 1.25rem; font-weight: 600; letter-spacing: -0.02em; }
-        .header-actions { display: flex; gap: 0.75rem; align-items: center; }
-        .privacy-badge { display: flex; align-items: center; gap: 0.5rem; background: var(--accent-green-dim); color: var(--accent-green); padding: 0.5rem 1rem; border-radius: 2rem; font-size: 0.75rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; }
-        .privacy-badge svg { width: 14px; height: 14px; }
-        .btn { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.625rem 1.25rem; border-radius: 8px; font-size: 0.875rem; font-weight: 500; cursor: pointer; transition: all 0.2s ease; border: none; font-family: inherit; }
-        .btn-primary { background: var(--accent-green); color: var(--bg-deep); }
-        .btn-primary:hover { background: #00f08e; transform: translateY(-1px); }
-        .btn-secondary { background: var(--bg-elevated); color: var(--text-primary); border: 1px solid var(--border); }
-        .btn-secondary:hover { background: var(--border); }
-        .btn-danger { background: var(--accent-red-dim); color: var(--accent-red); border: 1px solid transparent; }
-        .btn-danger:hover { background: var(--accent-red); color: white; }
-        .btn svg { width: 16px; height: 16px; }
-        main { max-width: 1800px; margin: 0 auto; padding: 2rem; }
-        .upload-section { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 2rem; margin-bottom: 2rem; }
-        .upload-section.collapsed { padding: 1rem 2rem; }
-        .upload-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
-        .upload-section.collapsed .upload-header { margin-bottom: 0; }
-        .upload-header h2 { font-size: 1.125rem; font-weight: 600; display: flex; align-items: center; gap: 0.75rem; }
-        .upload-header h2 svg { width: 20px; height: 20px; color: var(--accent-blue); }
-        .toggle-btn { background: none; border: none; color: var(--text-secondary); cursor: pointer; padding: 0.5rem; border-radius: 6px; transition: all 0.2s; }
-        .toggle-btn:hover { background: var(--bg-elevated); color: var(--text-primary); }
-        .upload-content { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; }
-        .upload-section.collapsed .upload-content { display: none; }
-        .upload-zone { background: var(--bg-elevated); border: 2px dashed var(--border); border-radius: 12px; padding: 2rem; text-align: center; cursor: pointer; transition: all 0.2s ease; }
-        .upload-zone:hover { border-color: var(--accent-blue); background: var(--accent-blue-dim); }
-        .upload-zone.dragover { border-color: var(--accent-green); background: var(--accent-green-dim); }
-        .upload-zone h3 { font-size: 0.875rem; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-primary); }
-        .upload-zone p { font-size: 0.75rem; color: var(--text-secondary); }
-        .upload-zone input { display: none; }
-        .file-list { margin-top: 1rem; display: flex; flex-direction: column; gap: 0.5rem; }
-        .file-item { display: flex; align-items: center; gap: 0.5rem; background: var(--bg-card); padding: 0.5rem 0.75rem; border-radius: 6px; font-size: 0.75rem; }
-        .file-item svg { width: 14px; height: 14px; color: var(--accent-green); }
-        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
-        .stat-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; }
-        .stat-card.highlight { border-color: var(--accent-green); background: linear-gradient(135deg, var(--bg-card) 0%, var(--accent-green-dim) 100%); }
-        .stat-label { font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; }
-        .stat-value { font-size: 1.375rem; font-weight: 700; letter-spacing: -0.02em; }
-        .stat-change { display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.75rem; margin-top: 0.5rem; padding: 0.25rem 0.5rem; border-radius: 4px; }
-        .stat-change.positive { color: var(--accent-green); background: var(--accent-green-dim); }
-        .stat-change.negative { color: var(--accent-red); background: var(--accent-red-dim); }
-        .stat-change.neutral { color: var(--text-secondary); background: var(--bg-elevated); }
-        .tabs { display: flex; gap: 0.25rem; background: var(--bg-card); padding: 0.375rem; border-radius: 10px; margin-bottom: 1.5rem; border: 1px solid var(--border); width: fit-content; }
-        .tab { padding: 0.625rem 1.25rem; border-radius: 6px; font-size: 0.875rem; font-weight: 500; color: var(--text-secondary); cursor: pointer; transition: all 0.2s; border: none; background: none; font-family: inherit; }
-        .tab:hover { color: var(--text-primary); }
-        .tab.active { background: var(--bg-elevated); color: var(--text-primary); }
-        .table-container { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; }
-        .table-header { display: flex; justify-content: space-between; align-items: center; padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border); }
-        .table-header h3 { font-size: 1rem; font-weight: 600; }
-        .search-box { display: flex; align-items: center; gap: 0.5rem; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem 1rem; }
-        .search-box svg { width: 16px; height: 16px; color: var(--text-muted); }
-        .search-box input { background: none; border: none; color: var(--text-primary); font-size: 0.875rem; outline: none; width: 200px; font-family: inherit; }
-        .search-box input::placeholder { color: var(--text-muted); }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 0.875rem 1rem; text-align: left; }
-        th { font-size: 0.65rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; background: var(--bg-elevated); border-bottom: 1px solid var(--border); white-space: nowrap; }
-        td { font-size: 0.8125rem; border-bottom: 1px solid var(--border); }
-        tr:last-child td { border-bottom: none; }
-        tr:hover td { background: var(--bg-elevated); }
-        .symbol-cell { display: flex; align-items: center; gap: 0.75rem; }
-        .symbol-icon { width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.5625rem; text-transform: uppercase; flex-shrink: 0; }
-        .symbol-icon.stock { background: var(--accent-blue-dim); color: var(--accent-blue); }
-        .symbol-icon.etf { background: var(--accent-purple); color: white; opacity: 0.9; }
-        .symbol-icon.mutual { background: var(--accent-gold-dim); color: var(--accent-gold); }
-        .symbol-icon.money { background: var(--accent-green-dim); color: var(--accent-green); }
-        .symbol-icon.other { background: var(--bg-elevated); color: var(--text-secondary); }
-        .symbol-info strong { display: block; font-weight: 600; font-size: 0.8125rem; }
-        .symbol-info span { font-size: 0.6875rem; color: var(--text-secondary); }
-        .value-positive { color: var(--accent-green); }
-        .value-negative { color: var(--accent-red); }
-        .value-neutral { color: var(--text-secondary); }
-        .text-right { text-align: right; }
-        .text-muted { color: var(--text-secondary); }
-        .roic-badge { display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.25rem 0.625rem; border-radius: 2rem; font-size: 0.6875rem; font-weight: 600; white-space: nowrap; }
-        .roic-badge.positive { background: var(--accent-green-dim); color: var(--accent-green); }
-        .roic-badge.negative { background: var(--accent-red-dim); color: var(--accent-red); }
-        .roic-badge.neutral { background: var(--bg-elevated); color: var(--text-muted); }
-        .roic-badge svg { width: 10px; height: 10px; }
-        .position-badge { display: inline-block; padding: 0.125rem 0.5rem; border-radius: 4px; font-size: 0.5625rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; margin-left: 0.5rem; }
-        .position-badge.new { background: var(--accent-blue-dim); color: var(--accent-blue); }
-        .position-badge.closed { background: var(--accent-red-dim); color: var(--accent-red); }
-        .empty-state { padding: 4rem 2rem; text-align: center; }
-        .empty-state svg { width: 64px; height: 64px; color: var(--text-muted); margin-bottom: 1.5rem; }
-        .empty-state h3 { font-size: 1.125rem; font-weight: 600; margin-bottom: 0.5rem; }
-        .empty-state p { color: var(--text-secondary); font-size: 0.875rem; max-width: 400px; margin: 0 auto; }
-        .accounts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
-        .account-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 1.5rem; cursor: pointer; transition: all 0.2s; }
-        .account-card:hover { border-color: var(--accent-blue); transform: translateY(-2px); }
-        .account-card.selected { border-color: var(--accent-green); background: linear-gradient(135deg, var(--bg-card) 0%, var(--accent-green-dim) 100%); }
-        .account-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem; }
-        .account-name { font-weight: 600; font-size: 0.875rem; margin-bottom: 0.25rem; }
-        .account-number { font-size: 0.75rem; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
-        .account-value { text-align: right; }
-        .account-value strong { display: block; font-size: 1.25rem; font-weight: 700; }
-        .account-change { font-size: 0.75rem; display: flex; align-items: center; gap: 0.25rem; justify-content: flex-end; }
-        .account-breakdown { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border); }
-        .breakdown-item { text-align: center; }
-        .breakdown-label { font-size: 0.5625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
-        .breakdown-value { font-size: 0.8125rem; font-weight: 600; margin-top: 0.25rem; }
-        .transaction-type { display: inline-block; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.625rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
-        .transaction-type.buy { background: var(--accent-green-dim); color: var(--accent-green); }
-        .transaction-type.sell { background: var(--accent-red-dim); color: var(--accent-red); }
-        .transaction-type.dividend { background: var(--accent-gold-dim); color: var(--accent-gold); }
-        .transaction-type.reinvest { background: var(--accent-blue-dim); color: var(--accent-blue); }
-        .transaction-type.transfer { background: var(--bg-elevated); color: var(--text-secondary); }
-        .transaction-type.other { background: var(--bg-elevated); color: var(--text-muted); }
-        .filter-row { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
-        .filter-pill { padding: 0.375rem 0.875rem; border-radius: 2rem; font-size: 0.75rem; font-weight: 500; border: 1px solid var(--border); background: var(--bg-elevated); color: var(--text-secondary); cursor: pointer; transition: all 0.2s; }
-        .filter-pill:hover { border-color: var(--text-secondary); color: var(--text-primary); }
-        .filter-pill.active { background: var(--accent-green); border-color: var(--accent-green); color: var(--bg-deep); }
-        ::-webkit-scrollbar { width: 8px; height: 8px; }
-        ::-webkit-scrollbar-track { background: var(--bg-deep); }
-        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
-        @media (max-width: 768px) { main { padding: 1rem; } .header-content { flex-direction: column; align-items: flex-start; } .stats-grid { grid-template-columns: repeat(2, 1fr); } th, td { padding: 0.5rem 0.5rem; } .accounts-grid { grid-template-columns: 1fr; } }
-        .toast-container { position: fixed; bottom: 2rem; right: 2rem; z-index: 1000; display: flex; flex-direction: column; gap: 0.5rem; }
-        .toast { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.5rem; display: flex; align-items: center; gap: 0.75rem; animation: slideIn 0.3s ease; box-shadow: 0 10px 40px rgba(0,0,0,0.4); }
-        .toast.success { border-color: var(--accent-green); }
-        .toast.error { border-color: var(--accent-red); }
-        .toast svg { width: 20px; height: 20px; }
-        .toast.success svg { color: var(--accent-green); }
-        .toast.error svg { color: var(--accent-red); }
-        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 200; opacity: 0; visibility: hidden; transition: all 0.3s; }
-        .modal-overlay.active { opacity: 1; visibility: visible; }
-        .modal { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; width: 90%; max-width: 900px; max-height: 90vh; overflow-y: auto; transform: scale(0.9); transition: transform 0.3s; }
-        .modal-overlay.active .modal { transform: scale(1); }
-        .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 1.5rem; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--bg-card); }
-        .modal-header h2 { font-size: 1.25rem; font-weight: 600; }
-        .modal-close { background: none; border: none; color: var(--text-secondary); cursor: pointer; padding: 0.5rem; border-radius: 6px; }
-        .modal-close:hover { background: var(--bg-elevated); color: var(--text-primary); }
-        .modal-body { padding: 1.5rem; }
-        .holding-detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
-        .holding-detail-item { background: var(--bg-elevated); padding: 1rem; border-radius: 8px; }
-        .holding-detail-item.highlight { border: 1px solid var(--accent-green); background: var(--accent-green-dim); }
-        .holding-detail-label { font-size: 0.625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.25rem; }
-        .holding-detail-value { font-size: 1rem; font-weight: 600; }
-        .performance-bridge { background: var(--bg-elevated); border-radius: 12px; padding: 1.5rem; margin: 1.5rem 0; }
-        .performance-bridge h4 { font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 1rem; }
-        .bridge-flow { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap; }
-        .bridge-item { text-align: center; flex: 1; min-width: 80px; }
-        .bridge-item .value { font-size: 1.125rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
-        .bridge-item .label { font-size: 0.625rem; color: var(--text-muted); margin-top: 0.25rem; }
-        .bridge-operator { font-size: 1.25rem; color: var(--text-muted); font-weight: 300; }
+        
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .animate-fadeIn {
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
     </style>
 </head>
 <body>
-    <header>
-        <div class="header-content">
-            <div class="logo">
-                <div class="logo-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
-                </div>
-                <h1>Portfolio Tracker</h1>
-            </div>
-            <div class="header-actions">
-                <div class="privacy-badge">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-                    Local Storage Only
-                </div>
-                <button class="btn btn-secondary" onclick="exportData()">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                    Export
-                </button>
-                <button class="btn btn-danger" onclick="clearAllData()">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
-                    Clear Data
-                </button>
-            </div>
-        </div>
-    </header>
+    <div id="root"></div>
 
-    <main>
-        <section class="upload-section" id="uploadSection">
-            <div class="upload-header">
-                <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Import Data</h2>
-                <button class="toggle-btn" onclick="toggleUpload()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><polyline points="6 9 12 15 18 9"/></svg></button>
-            </div>
-            <div class="upload-content">
-                <div class="upload-zone" id="holdingsZone2024"><h3>2024 Year-End Holdings</h3><p>Drop CSV file or click to browse</p><input type="file" accept=".csv" onchange="handleFile(event, 'holdings2024')"><div class="file-list" id="holdings2024List"></div></div>
-                <div class="upload-zone" id="holdingsZone2025"><h3>2025 Year-End Holdings</h3><p>Drop CSV file or click to browse</p><input type="file" accept=".csv" onchange="handleFile(event, 'holdings2025')"><div class="file-list" id="holdings2025List"></div></div>
-                <div class="upload-zone" id="transactionsZone"><h3>2025 Transactions (Q1-Q4)</h3><p>Drop CSV files or click to browse (multiple allowed)</p><input type="file" accept=".csv" multiple onchange="handleFile(event, 'transactions')"><div class="file-list" id="transactionsList"></div></div>
-            </div>
-        </section>
+    <script type="text/babel">
+        const { useState } = React;
 
-        <div class="stats-grid" id="statsGrid" style="display: none;">
-            <div class="stat-card"><div class="stat-label">Total Portfolio Value</div><div class="stat-value mono" id="statTotalValue">$0</div><div class="stat-change positive" id="statTotalChange">+0%</div></div>
-            <div class="stat-card"><div class="stat-label">2024 Starting Value</div><div class="stat-value mono" id="statStartValue">$0</div></div>
-            <div class="stat-card"><div class="stat-label">Net Invested '25</div><div class="stat-value mono" id="statNetInvested">$0</div><div class="stat-change neutral">Buys + Reinv - Sells</div></div>
-            <div class="stat-card highlight"><div class="stat-label">True Market Gain</div><div class="stat-value mono" id="statMarketGain">$0</div><div class="stat-change" id="statMarketGainChange">ROIC: 0%</div></div>
-            <div class="stat-card"><div class="stat-label">2025 Purchases</div><div class="stat-value mono" id="statPurchases">$0</div></div>
-            <div class="stat-card"><div class="stat-label">2025 Sales</div><div class="stat-value mono" id="statSales">$0</div></div>
-            <div class="stat-card"><div class="stat-label">Dividends Reinvested</div><div class="stat-value mono" id="statDividends">$0</div></div>
-        </div>
+        /*
+          CSV DATA INTEGRATION GUIDE:
+          
+          To load your actual CSV files, replace the portfolioData object below.
+          
+          1. HOLDINGS FILES (holdings_2024.csv, holdings_2025.csv):
+             - Parse CSV with columns: Account_Number, Asset_Class, Symbol, Description, Quantity, Price, Market_Value, Cost_Basis, Unrealized_Gain_Loss
+             - Normalize account numbers: Remove hyphens (X90-845768 → X90845768)
+             - Group by normalized Account_Number and sum Market_Value and Cost_Basis
+             - Count unique holdings per account
+          
+          2. TRANSACTIONS FILE (transactions_2025.csv):
+             - Parse CSV with columns: Account, Account Number, Action, Symbol, Amount, etc.
+             - Normalize Account Number: Remove hyphens and spaces
+             - Create account mapping: normalized number → friendly Account name
+             - Sum transactions by Action type:
+               * Purchases: Action contains "YOU BOUGHT" or look for negative amounts with buy-related actions
+               * Sales: Action contains "YOU SOLD" or positive amounts with sell-related actions
+               * Dividends Reinvested: Action = "REINVESTMENT"
+             - Calculate Net Invested = Purchases + Dividends Reinvested - Sales
+          
+          3. ACCOUNT CONSOLIDATION:
+             - Always use NORMALIZED account numbers as keys (no hyphens/spaces)
+             - Display friendly names from transactions file "Account" column
+             - Match across files using normalized numbers
+        */
 
-        <div class="tabs" id="mainTabs" style="display: none;">
-            <button class="tab active" data-tab="accounts">By Account</button>
-            <button class="tab" data-tab="holdings">All Holdings</button>
-            <button class="tab" data-tab="transactions">Transactions</button>
-        </div>
+        // Helper function to normalize account numbers (remove hyphens and spaces)
+        const normalizeAccountNumber = (accountNum) => {
+            if (!accountNum) return '';
+            return accountNum.toString().replace(/[-\s]/g, '');
+        };
 
-        <div id="accountsView">
-            <div class="accounts-grid" id="accountsGrid"></div>
-            <div class="table-container" id="accountHoldingsTable" style="display: none;">
-                <div class="table-header"><h3 id="accountHoldingsTitle">Holdings</h3><button class="btn btn-secondary" onclick="clearAccountSelection()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Clear Selection</button></div>
-                <div style="overflow-x: auto;">
-                    <table><thead><tr><th>Symbol</th><th class="text-right">Quantity</th><th class="text-right">Price</th><th class="text-right">Market Value</th><th class="text-right">Start Value '24</th><th class="text-right">Net Invested '25</th><th class="text-right">Market Perf ($)</th><th class="text-right">ROIC %</th></tr></thead><tbody id="accountHoldingsBody"></tbody></table>
-                </div>
-            </div>
-        </div>
-
-        <div id="holdingsView" style="display: none;">
-            <div class="filter-row">
-                <button class="filter-pill active" data-filter="all">All</button>
-                <button class="filter-pill" data-filter="Stock">Stocks</button>
-                <button class="filter-pill" data-filter="ETF">ETFs</button>
-                <button class="filter-pill" data-filter="Mutual Fund">Mutual Funds</button>
-                <button class="filter-pill" data-filter="other">Other</button>
-            </div>
-            <div class="table-container">
-                <div class="table-header"><h3>All Holdings - True 2025 Performance</h3><div class="search-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" placeholder="Search holdings..." id="holdingsSearch"></div></div>
-                <div style="overflow-x: auto;">
-                    <table><thead><tr><th>Symbol</th><th>Account</th><th class="text-right">Qty</th><th class="text-right">Price</th><th class="text-right">End Value</th><th class="text-right">Start '24</th><th class="text-right">Net Invested '25</th><th class="text-right">Market Perf ($)</th><th class="text-right">ROIC %</th></tr></thead><tbody id="holdingsBody"></tbody></table>
-                </div>
-            </div>
-        </div>
-
-        <div id="transactionsView" style="display: none;">
-            <div class="filter-row">
-                <button class="filter-pill active" data-txfilter="all">All</button>
-                <button class="filter-pill" data-txfilter="buy">Purchases</button>
-                <button class="filter-pill" data-txfilter="sell">Sales</button>
-                <button class="filter-pill" data-txfilter="dividend">Dividends</button>
-                <button class="filter-pill" data-txfilter="reinvest">Reinvestments</button>
-            </div>
-            <div class="table-container">
-                <div class="table-header"><h3>2025 Transactions</h3><div class="search-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" placeholder="Search transactions..." id="transactionsSearch"></div></div>
-                <div style="overflow-x: auto;">
-                    <table><thead><tr><th>Date</th><th>Type</th><th>Symbol</th><th>Account</th><th class="text-right">Quantity</th><th class="text-right">Price</th><th class="text-right">Amount</th></tr></thead><tbody id="transactionsBody"></tbody></table>
-                </div>
-            </div>
-        </div>
-
-        <div class="empty-state" id="emptyState">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
-            <h3>No Portfolio Data</h3>
-            <p>Upload your Fidelity CSV files to see your portfolio overview. Your data stays in your browser and is never sent to any server.</p>
-        </div>
-    </main>
-
-    <div class="modal-overlay" id="holdingModal">
-        <div class="modal">
-            <div class="modal-header"><h2 id="modalTitle">Holding Details</h2><button class="modal-close" onclick="closeModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
-            <div class="modal-body" id="modalBody"></div>
-        </div>
-    </div>
-
-    <div class="toast-container" id="toastContainer"></div>
-
-    <script>
-        const DB_NAME = 'PortfolioTrackerDB';
-        const DB_VERSION = 1;
-        let db;
-        let holdings2024 = [];
-        let holdings2025 = [];
-        let transactions = [];
-        let performanceData = [];
-        let selectedAccount = null;
-        let currentFilter = 'all';
-        let currentTxFilter = 'all';
-
-        async function initDB() {
-            return new Promise((resolve, reject) => {
-                const request = indexedDB.open(DB_NAME, DB_VERSION);
-                request.onerror = () => reject(request.error);
-                request.onsuccess = () => { db = request.result; resolve(db); };
-                request.onupgradeneeded = (event) => {
-                    const db = event.target.result;
-                    ['holdings2024', 'holdings2025', 'transactions', 'metadata'].forEach(store => {
-                        if (!db.objectStoreNames.contains(store)) {
-                            db.createObjectStore(store, { keyPath: 'id', autoIncrement: true });
-                        }
-                    });
-                };
-            });
-        }
-
-        async function saveToStore(storeName, data) {
-            const transaction = db.transaction(storeName, 'readwrite');
-            const store = transaction.objectStore(storeName);
-            await new Promise((resolve, reject) => { const r = store.clear(); r.onsuccess = resolve; r.onerror = reject; });
-            for (const item of data) store.add(item);
-            return new Promise((resolve, reject) => { transaction.oncomplete = resolve; transaction.onerror = reject; });
-        }
-
-        async function loadFromStore(storeName) {
-            return new Promise((resolve, reject) => {
-                const transaction = db.transaction(storeName, 'readonly');
-                const store = transaction.objectStore(storeName);
-                const request = store.getAll();
-                request.onsuccess = () => resolve(request.result);
-                request.onerror = () => reject(request.error);
-            });
-        }
-
-        function parseCSV(text) {
-            const lines = text.split('\n');
-            const headers = [];
-            const data = [];
-            let headerFound = false;
-            for (let line of lines) {
-                line = line.trim();
-                if (!line || line.startsWith('"The data') || line.startsWith('"informational') || line.startsWith('"exported') || line.startsWith('"purposes') || line.startsWith('"Brokerage') || line.startsWith('"Financial') || line.startsWith('"Fidelity') || line.startsWith('Date downloaded')) continue;
-                const values = parseCSVLine(line);
-                if (!headerFound && values.length > 0 && (values[0] === 'Account_Number' || values[0] === 'Run Date')) { headers.push(...values); headerFound = true; continue; }
-                if (headerFound && values.length >= headers.length - 2) {
-                    const row = {};
-                    headers.forEach((header, i) => { row[header] = values[i] || ''; });
-                    data.push(row);
+        // Sample data structure - replace with your actual CSV data
+        const portfolioData = {
+            // Account mapping: normalized number -> friendly name
+            accountNames: {
+                '235972478': 'Health Savings Account',
+                'X90845768': 'Primary Portfolio',
+                'Z21306611': 'Individual - TOD',
+                'Z08638986': 'Joint WROS - TOD'
+            },
+            
+            holdings2024: {
+                totalValue: 617945.22,
+                // Key by normalized account number
+                accountsByNumber: {
+                    '235972478': { value: 0, holdings: 0 },
+                    'X90845768': { value: 393400, holdings: 20 },
+                    'Z21306611': { value: 179200, holdings: 13 },
+                    'Z08638986': { value: 45400, holdings: 2 }
                 }
+            },
+            
+            holdings2025: {
+                totalValue: 836872.98,
+                totalCostBasis: 648184.39,
+                // Key by normalized account number
+                accountsByNumber: {
+                    '235972478': { value: 0, holdings: 0, costBasis: 0 },
+                    'X90845768': { value: 575874.48, holdings: 20, costBasis: 393400 },
+                    'Z21306611': { value: 208560.27, holdings: 13, costBasis: 179200 },
+                    'Z08638986': { value: 52438.23, holdings: 2, costBasis: 45400 }
+                }
+            },
+            
+            transactions2025: {
+                purchases: 23761.12,
+                sales: 2389.68,
+                dividendsReinvested: 8787.65,
+                netInvested: 38239.17 // Buys + Divs - Sells
             }
-            return data;
-        }
+        };
 
-        function parseCSVLine(line) {
-            const values = [];
-            let current = '';
-            let inQuotes = false;
-            for (let i = 0; i < line.length; i++) {
-                const char = line[i];
-                if (char === '"') inQuotes = !inQuotes;
-                else if (char === ',' && !inQuotes) { values.push(current.trim()); current = ''; }
-                else current += char;
-            }
-            values.push(current.trim());
-            return values;
-        }
+        // Lucide Icons as inline SVG components
+        const TrendingUp = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
+                <polyline points="17 6 23 6 23 12"></polyline>
+            </svg>
+        );
 
-        function parseHoldingsCSV(text) {
-            return parseCSV(text).map(row => ({
-                accountNumber: row.Account_Number || '',
-                assetClass: row.Asset_Class || '',
-                symbol: row.Symbol || '',
-                description: row.Description || '',
-                quantity: parseFloat(row.Quantity) || 0,
-                price: parseFloat(row.Price) || 0,
-                marketValue: parseFloat(row.Market_Value) || 0,
-                costBasis: parseFloat(row.Cost_Basis) || 0,
-                unrealizedGainLoss: parseFloat(row.Unrealized_Gain_Loss) || 0
-            })).filter(h => h.symbol && h.accountNumber);
-        }
+        const Calendar = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                <line x1="16" y1="2" x2="16" y2="6"></line>
+                <line x1="8" y1="2" x2="8" y2="6"></line>
+                <line x1="3" y1="10" x2="21" y2="10"></line>
+            </svg>
+        );
 
-        function parseTransactionsCSV(text) {
-            return parseCSV(text).map(row => {
-                const action = row.Action || '';
-                let type = 'other';
-                if (action.includes('YOU BOUGHT') || action.includes('ESPP')) type = 'buy';
-                else if (action.includes('YOU SOLD')) type = 'sell';
-                else if (action.includes('DIVIDEND RECEIVED')) type = 'dividend';
-                else if (action.includes('REINVESTMENT')) type = 'reinvest';
-                else if (action.includes('WIRE TRANSFER') || action.includes('TRANSFER')) type = 'transfer';
-                else if (action.includes('CONVERSION')) type = 'conversion';
-                else if (action.includes('MARGIN INTEREST')) type = 'interest';
-                return {
-                    date: row['Run Date'] || '',
-                    account: row.Account || '',
-                    accountNumber: (row['Account Number'] || '').replace(/[^A-Z0-9]/g, ''),
-                    action: action,
-                    symbol: row.Symbol || '',
-                    description: row.Description || '',
-                    type: type,
-                    quantity: parseFloat(row.Quantity) || 0,
-                    price: parseFloat(row.Price) || 0,
-                    amount: parseFloat(row.Amount) || 0
-                };
-            }).filter(t => t.date && t.accountNumber);
-        }
+        const DollarSign = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="1" x2="12" y2="23"></line>
+                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+            </svg>
+        );
 
-        // PERFORMANCE BRIDGE CALCULATION
-        function calculatePerformanceBridge() {
-            const holdings2024Map = {};
-            holdings2024.forEach(h => { holdings2024Map[`${h.accountNumber}-${h.symbol}`] = h; });
-            const holdings2025Map = {};
-            holdings2025.forEach(h => { holdings2025Map[`${h.accountNumber}-${h.symbol}`] = h; });
-            const inflowsMap = {};
-            transactions.forEach(t => {
-                if (!t.symbol) return;
-                const key = `${t.accountNumber}-${t.symbol}`;
-                if (!inflowsMap[key]) inflowsMap[key] = { buys: 0, sells: 0, reinvestments: 0, realizedGain: 0 };
-                if (t.type === 'buy') inflowsMap[key].buys += Math.abs(t.amount);
-                else if (t.type === 'sell') { inflowsMap[key].sells += Math.abs(t.amount); inflowsMap[key].realizedGain += t.amount; }
-                else if (t.type === 'reinvest') inflowsMap[key].reinvestments += Math.abs(t.amount);
-            });
-            const allKeys = new Set([...Object.keys(holdings2024Map), ...Object.keys(holdings2025Map), ...Object.keys(inflowsMap)]);
-            performanceData = [];
-            allKeys.forEach(key => {
-                const [accountNumber, symbol] = key.split('-');
-                if (!symbol) return;
-                const h2024 = holdings2024Map[key];
-                const h2025 = holdings2025Map[key];
-                const inflows = inflowsMap[key] || { buys: 0, sells: 0, reinvestments: 0, realizedGain: 0 };
-                const startValue = h2024 ? h2024.marketValue : 0;
-                const endValue = h2025 ? h2025.marketValue : 0;
-                const netInflows = inflows.buys + inflows.reinvestments - inflows.sells;
-                const trueMarketGain = endValue - (startValue + netInflows);
-                const investedCapital = startValue + netInflows;
-                let roic = 0;
-                if (investedCapital > 0) roic = (trueMarketGain / investedCapital) * 100;
-                else if (investedCapital < 0 && trueMarketGain !== 0) roic = (trueMarketGain / Math.abs(investedCapital)) * 100;
-                let positionStatus = 'existing';
-                if (!h2024 && h2025) positionStatus = 'new';
-                else if (h2024 && !h2025) positionStatus = 'closed';
-                performanceData.push({
-                    key, accountNumber, symbol,
-                    description: h2025?.description || h2024?.description || '',
-                    assetClass: h2025?.assetClass || h2024?.assetClass || 'Other',
-                    quantity: h2025?.quantity || 0,
-                    price: h2025?.price || 0,
-                    startValue, endValue, netInflows,
-                    buys: inflows.buys, sells: inflows.sells, reinvestments: inflows.reinvestments,
-                    trueMarketGain, roic, positionStatus,
-                    realizedGain: inflows.realizedGain,
-                    costBasis: h2025?.costBasis || 0,
-                    unrealizedGainLoss: h2025?.unrealizedGainLoss || 0
-                });
-            });
-            performanceData.sort((a, b) => b.endValue - a.endValue);
-            return performanceData;
-        }
+        const BarChart3 = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 3v18h18"></path>
+                <path d="M18 17V9"></path>
+                <path d="M13 17V5"></path>
+                <path d="M8 17v-3"></path>
+            </svg>
+        );
 
-        function handleFile(event, type) {
-            const files = event.target.files;
-            if (!files.length) return;
-            Array.from(files).forEach(file => {
-                const reader = new FileReader();
-                reader.onload = async (e) => {
-                    const text = e.target.result;
-                    if (type === 'holdings2024') { holdings2024 = parseHoldingsCSV(text); await saveToStore('holdings2024', holdings2024); updateFileList('holdings2024List', [file.name]); showToast('2024 holdings imported', 'success'); }
-                    else if (type === 'holdings2025') { holdings2025 = parseHoldingsCSV(text); await saveToStore('holdings2025', holdings2025); updateFileList('holdings2025List', [file.name]); showToast('2025 holdings imported', 'success'); }
-                    else if (type === 'transactions') {
-                        const newTx = parseTransactionsCSV(text);
-                        transactions = [...transactions, ...newTx];
-                        const seen = new Set();
-                        transactions = transactions.filter(t => { const key = `${t.date}-${t.accountNumber}-${t.action}-${t.symbol}-${t.amount}`; if (seen.has(key)) return false; seen.add(key); return true; });
-                        await saveToStore('transactions', transactions);
-                        updateTransactionsList();
-                        showToast(`${newTx.length} transactions imported`, 'success');
-                    }
-                    calculatePerformanceBridge();
-                    updateUI();
-                };
-                reader.readAsText(file);
-            });
-        }
+        const PieChart = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path>
+                <path d="M22 12A10 10 0 0 0 12 2v10z"></path>
+            </svg>
+        );
 
-        function updateFileList(listId, files) {
-            document.getElementById(listId).innerHTML = files.map(f => `<div class="file-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>${f}</div>`).join('');
-        }
+        const ArrowUpRight = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="7" y1="17" x2="17" y2="7"></line>
+                <polyline points="7 7 17 7 17 17"></polyline>
+            </svg>
+        );
 
-        function updateTransactionsList() {
-            const quarters = new Set();
-            transactions.forEach(t => { const date = new Date(t.date); const q = Math.ceil((date.getMonth() + 1) / 3); quarters.add(`Q${q} 2025`); });
-            document.getElementById('transactionsList').innerHTML = Array.from(quarters).sort().map(q => `<div class="file-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>${q} Transactions</div>`).join('');
-        }
+        const ArrowDownRight = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="7" y1="7" x2="17" y2="17"></line>
+                <polyline points="17 7 17 17 7 17"></polyline>
+            </svg>
+        );
 
-        function setupDragDrop() {
-            document.querySelectorAll('.upload-zone').forEach(zone => {
-                zone.addEventListener('click', () => zone.querySelector('input').click());
-                zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('dragover'); });
-                zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
-                zone.addEventListener('drop', (e) => { e.preventDefault(); zone.classList.remove('dragover'); const input = zone.querySelector('input'); input.files = e.dataTransfer.files; input.dispatchEvent(new Event('change')); });
-            });
-        }
+        const PortfolioDashboard = () => {
+            const [activeTab, setActiveTab] = useState('alltime');
 
-        function updateUI() {
-            const hasData = holdings2025.length > 0;
-            document.getElementById('emptyState').style.display = hasData ? 'none' : 'block';
-            document.getElementById('statsGrid').style.display = hasData ? 'grid' : 'none';
-            document.getElementById('mainTabs').style.display = hasData ? 'flex' : 'none';
-            if (hasData) { updateStats(); updateAccountsView(); updateHoldingsView(); updateTransactionsView(); }
-        }
+            // All-Time Performance Calculations
+            const currentValue = portfolioData.holdings2025.totalValue;
+            const costBasis = portfolioData.holdings2025.totalCostBasis;
+            const unrealizedGain = currentValue - costBasis;
+            const unrealizedGainPct = (unrealizedGain / costBasis) * 100;
 
-        function updateStats() {
-            const totals = performanceData.reduce((acc, p) => {
-                acc.endValue += p.endValue; acc.startValue += p.startValue; acc.netInflows += p.netInflows;
-                acc.trueMarketGain += p.trueMarketGain; acc.buys += p.buys; acc.sells += p.sells; acc.reinvestments += p.reinvestments;
-                return acc;
-            }, { endValue: 0, startValue: 0, netInflows: 0, trueMarketGain: 0, buys: 0, sells: 0, reinvestments: 0 });
-            const investedCapital = totals.startValue + totals.netInflows;
-            const totalROIC = investedCapital > 0 ? (totals.trueMarketGain / investedCapital) * 100 : 0;
-            const ytdPercent = totals.startValue > 0 ? ((totals.endValue - totals.startValue) / totals.startValue) * 100 : 0;
-            document.getElementById('statTotalValue').textContent = formatCurrency(totals.endValue);
-            document.getElementById('statStartValue').textContent = formatCurrency(totals.startValue);
-            document.getElementById('statNetInvested').textContent = formatCurrency(totals.netInflows);
-            document.getElementById('statMarketGain').textContent = formatCurrency(totals.trueMarketGain);
-            document.getElementById('statMarketGain').className = `stat-value mono ${totals.trueMarketGain >= 0 ? 'value-positive' : 'value-negative'}`;
-            document.getElementById('statPurchases').textContent = formatCurrency(totals.buys);
-            document.getElementById('statSales').textContent = formatCurrency(totals.sells);
-            document.getElementById('statDividends').textContent = formatCurrency(totals.reinvestments);
-            const changeEl = document.getElementById('statTotalChange');
-            changeEl.className = `stat-change ${ytdPercent >= 0 ? 'positive' : 'negative'}`;
-            changeEl.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polyline points="${ytdPercent >= 0 ? '18 15 12 9 6 15' : '6 9 12 15 18 9'}"/></svg>${ytdPercent >= 0 ? '+' : ''}${ytdPercent.toFixed(2)}% vs 2024`;
-            const marketGainChangeEl = document.getElementById('statMarketGainChange');
-            marketGainChangeEl.className = `stat-change ${totalROIC >= 0 ? 'positive' : 'negative'}`;
-            marketGainChangeEl.textContent = `ROIC: ${totalROIC >= 0 ? '+' : ''}${totalROIC.toFixed(2)}%`;
-        }
+            // 2025 Performance Calculations
+            const startValue = portfolioData.holdings2024.totalValue;
+            const endValue = portfolioData.holdings2025.totalValue;
+            const netInflows = portfolioData.transactions2025.netInvested;
+            const marketGain = endValue - (startValue + netInflows);
+            const marketGainPct = (marketGain / (startValue + netInflows)) * 100;
+            const totalChange = endValue - startValue;
+            const totalChangePct = (totalChange / startValue) * 100;
 
-        function updateAccountsView() {
-            const accounts = {};
-            performanceData.forEach(p => {
-                if (!accounts[p.accountNumber]) accounts[p.accountNumber] = { number: p.accountNumber, holdings: [], endValue: 0, startValue: 0, netInflows: 0, trueMarketGain: 0 };
-                accounts[p.accountNumber].holdings.push(p);
-                accounts[p.accountNumber].endValue += p.endValue;
-                accounts[p.accountNumber].startValue += p.startValue;
-                accounts[p.accountNumber].netInflows += p.netInflows;
-                accounts[p.accountNumber].trueMarketGain += p.trueMarketGain;
-            });
-            const accountNames = {};
-            transactions.forEach(t => { if (t.account && t.accountNumber) accountNames[t.accountNumber] = t.account; });
-            document.getElementById('accountsGrid').innerHTML = Object.values(accounts).map(acc => {
-                const investedCapital = acc.startValue + acc.netInflows;
-                const roic = investedCapital > 0 ? (acc.trueMarketGain / investedCapital) * 100 : 0;
-                const name = accountNames[acc.number] || 'Brokerage Account';
-                return `<div class="account-card ${selectedAccount === acc.number ? 'selected' : ''}" onclick="selectAccount('${acc.number}')"><div class="account-header"><div><div class="account-name">${name}</div><div class="account-number">${formatAccountNumber(acc.number)}</div></div><div class="account-value"><strong>${formatCurrency(acc.endValue)}</strong><div class="account-change ${acc.trueMarketGain >= 0 ? 'value-positive' : 'value-negative'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polyline points="${acc.trueMarketGain >= 0 ? '18 15 12 9 6 15' : '6 9 12 15 18 9'}"/></svg>${roic >= 0 ? '+' : ''}${roic.toFixed(1)}% ROIC</div></div></div><div class="account-breakdown"><div class="breakdown-item"><div class="breakdown-label">Holdings</div><div class="breakdown-value">${acc.holdings.filter(h => h.endValue > 0).length}</div></div><div class="breakdown-item"><div class="breakdown-label">Start '24</div><div class="breakdown-value">${formatCurrencyShort(acc.startValue)}</div></div><div class="breakdown-item"><div class="breakdown-label">Net Inv '25</div><div class="breakdown-value">${formatCurrencyShort(acc.netInflows)}</div></div><div class="breakdown-item"><div class="breakdown-label">Market Gain</div><div class="breakdown-value ${acc.trueMarketGain >= 0 ? 'value-positive' : 'value-negative'}">${formatCurrencyShort(acc.trueMarketGain)}</div></div></div></div>`;
-            }).join('');
-        }
+            const formatCurrency = (value) => {
+                return new Intl.NumberFormat('en-US', {
+                    style: 'currency',
+                    currency: 'USD',
+                    minimumFractionDigits: 2
+                }).format(value);
+            };
 
-        function selectAccount(accountNumber) {
-            selectedAccount = selectedAccount === accountNumber ? null : accountNumber;
-            updateAccountsView();
-            const table = document.getElementById('accountHoldingsTable');
-            if (selectedAccount) {
-                const accountPerf = performanceData.filter(p => p.accountNumber === selectedAccount);
-                document.getElementById('accountHoldingsTitle').textContent = `Holdings - ${formatAccountNumber(selectedAccount)}`;
-                document.getElementById('accountHoldingsBody').innerHTML = accountPerf.filter(p => p.endValue > 0 || p.positionStatus === 'closed').map(p => renderPerformanceRow(p, false)).join('');
-                table.style.display = 'block';
-            } else { table.style.display = 'none'; }
-        }
+            const formatPercent = (value) => {
+                return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
+            };
 
-        function clearAccountSelection() { selectedAccount = null; updateAccountsView(); document.getElementById('accountHoldingsTable').style.display = 'none'; }
+            return (
+                <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100 p-8">
+                    <div className="max-w-7xl mx-auto">
+                        {/* Header */}
+                        <div className="mb-12">
+                            <h1 className="text-5xl font-bold mb-3 bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
+                                Portfolio Analytics
+                            </h1>
+                            <p className="text-slate-400 text-lg">Track your wealth journey with precision</p>
+                        </div>
 
-        function updateHoldingsView() {
-            const accountNames = {};
-            transactions.forEach(t => { if (t.account && t.accountNumber) accountNames[t.accountNumber] = t.account; });
-            let filtered = performanceData.filter(p => p.endValue > 0 || p.positionStatus === 'closed');
-            if (currentFilter !== 'all') {
-                if (currentFilter === 'other') filtered = filtered.filter(p => !['Stock', 'ETF', 'Mutual Fund'].includes(p.assetClass));
-                else filtered = filtered.filter(p => p.assetClass === currentFilter);
-            }
-            const searchTerm = document.getElementById('holdingsSearch')?.value?.toLowerCase() || '';
-            if (searchTerm) filtered = filtered.filter(p => p.symbol.toLowerCase().includes(searchTerm) || p.description.toLowerCase().includes(searchTerm));
-            document.getElementById('holdingsBody').innerHTML = filtered.map(p => renderPerformanceRow(p, true, accountNames[p.accountNumber] || p.accountNumber)).join('');
-        }
+                        {/* Tab Navigation */}
+                        <div className="flex gap-4 mb-8 border-b border-slate-800 pb-1">
+                            <button
+                                onClick={() => setActiveTab('alltime')}
+                                className={`px-6 py-3 font-semibold text-lg transition-all duration-300 relative ${
+                                    activeTab === 'alltime'
+                                        ? 'text-emerald-400'
+                                        : 'text-slate-500 hover:text-slate-300'
+                                }`}
+                            >
+                                <span className="inline-flex items-center gap-2">
+                                    <TrendingUp />
+                                    All-Time Performance
+                                </span>
+                                {activeTab === 'alltime' && (
+                                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-400 to-cyan-400 rounded-full" />
+                                )}
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('2025')}
+                                className={`px-6 py-3 font-semibold text-lg transition-all duration-300 relative ${
+                                    activeTab === '2025'
+                                        ? 'text-cyan-400'
+                                        : 'text-slate-500 hover:text-slate-300'
+                                }`}
+                            >
+                                <span className="inline-flex items-center gap-2">
+                                    <Calendar />
+                                    2025 Year-in-Review
+                                </span>
+                                {activeTab === '2025' && (
+                                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-400 to-blue-400 rounded-full" />
+                                )}
+                            </button>
+                        </div>
 
-        function renderPerformanceRow(p, showAccount, accountName = '') {
-            const iconClass = getAssetIconClass(p.assetClass);
-            const initials = p.symbol.substring(0, 2);
-            let positionBadge = '';
-            if (p.positionStatus === 'new') positionBadge = '<span class="position-badge new">NEW</span>';
-            else if (p.positionStatus === 'closed') positionBadge = '<span class="position-badge closed">CLOSED</span>';
-            const roicClass = p.roic >= 0 ? 'positive' : 'negative';
-            const roicArrow = p.roic >= 0 ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"/></svg>' : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>';
-            return `<tr onclick="showHoldingDetail('${p.symbol}', '${p.accountNumber}')" style="cursor: pointer;"><td><div class="symbol-cell"><div class="symbol-icon ${iconClass}">${initials}</div><div class="symbol-info"><strong>${p.symbol}${positionBadge}</strong><span>${truncate(p.description, 25)}</span></div></div></td>${showAccount ? `<td class="text-muted" style="font-size: 0.75rem;">${truncate(accountName, 15)}</td>` : ''}<td class="text-right mono">${p.quantity ? formatNumber(p.quantity) : '-'}</td><td class="text-right mono">${p.price ? formatCurrency(p.price) : '-'}</td><td class="text-right mono">${formatCurrency(p.endValue)}</td><td class="text-right mono text-muted">${formatCurrency(p.startValue)}</td><td class="text-right mono value-neutral">${formatCurrency(p.netInflows)}</td><td class="text-right mono ${p.trueMarketGain >= 0 ? 'value-positive' : 'value-negative'}">${p.trueMarketGain >= 0 ? '+' : ''}${formatCurrency(p.trueMarketGain)}</td><td class="text-right"><span class="roic-badge ${roicClass}">${roicArrow}${p.roic >= 0 ? '+' : ''}${p.roic.toFixed(1)}%</span></td></tr>`;
-        }
+                        {/* Tab Content */}
+                        {activeTab === 'alltime' && (
+                            <div className="space-y-6 animate-fadeIn">
+                                {/* Key Metrics */}
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                    <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-2xl p-6 hover:border-emerald-500/50 transition-all duration-300">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <span className="text-slate-400 text-sm font-medium">Current Market Value</span>
+                                            <DollarSign />
+                                        </div>
+                                        <div className="text-3xl font-bold text-emerald-400">{formatCurrency(currentValue)}</div>
+                                    </div>
 
-        function updateTransactionsView() {
-            let filtered = [...transactions];
-            if (currentTxFilter !== 'all') filtered = filtered.filter(t => t.type === currentTxFilter);
-            const searchTerm = document.getElementById('transactionsSearch')?.value?.toLowerCase() || '';
-            if (searchTerm) filtered = filtered.filter(t => t.symbol?.toLowerCase().includes(searchTerm) || t.description?.toLowerCase().includes(searchTerm) || t.action?.toLowerCase().includes(searchTerm));
-            filtered.sort((a, b) => new Date(b.date) - new Date(a.date));
-            document.getElementById('transactionsBody').innerHTML = filtered.slice(0, 200).map(t => `<tr><td class="mono">${formatDate(t.date)}</td><td><span class="transaction-type ${t.type}">${t.type}</span></td><td><strong>${t.symbol || '-'}</strong></td><td class="text-muted">${truncate(t.account, 20)}</td><td class="text-right mono">${t.quantity ? formatNumber(t.quantity) : '-'}</td><td class="text-right mono">${t.price ? formatCurrency(t.price) : '-'}</td><td class="text-right mono ${t.amount >= 0 ? 'value-positive' : 'value-negative'}">${formatCurrency(t.amount)}</td></tr>`).join('');
-        }
+                                    <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-2xl p-6 hover:border-blue-500/50 transition-all duration-300">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <span className="text-slate-400 text-sm font-medium">Total Cost Basis</span>
+                                            <BarChart3 />
+                                        </div>
+                                        <div className="text-3xl font-bold text-blue-400">{formatCurrency(costBasis)}</div>
+                                    </div>
 
-        function showHoldingDetail(symbol, accountNumber) {
-            const perf = performanceData.find(p => p.symbol === symbol && p.accountNumber === accountNumber);
-            if (!perf) return;
-            const relatedTx = transactions.filter(t => t.symbol === symbol && t.accountNumber === accountNumber);
-            let statusBadge = '';
-            if (perf.positionStatus === 'new') statusBadge = '<span class="position-badge new" style="margin-left: 0.5rem;">NEW POSITION</span>';
-            else if (perf.positionStatus === 'closed') statusBadge = '<span class="position-badge closed" style="margin-left: 0.5rem;">CLOSED POSITION</span>';
-            document.getElementById('modalTitle').innerHTML = `${symbol} - ${perf.description}${statusBadge}`;
-            document.getElementById('modalBody').innerHTML = `
-                <div class="performance-bridge"><h4>2025 Performance Bridge</h4><div class="bridge-flow"><div class="bridge-item"><div class="value">${formatCurrency(perf.startValue)}</div><div class="label">Start Value '24</div></div><div class="bridge-operator">+</div><div class="bridge-item"><div class="value">${formatCurrency(perf.netInflows)}</div><div class="label">Net Invested '25</div></div><div class="bridge-operator">+</div><div class="bridge-item"><div class="value ${perf.trueMarketGain >= 0 ? 'value-positive' : 'value-negative'}">${formatCurrency(perf.trueMarketGain)}</div><div class="label">Market Gain/Loss</div></div><div class="bridge-operator">=</div><div class="bridge-item"><div class="value">${formatCurrency(perf.endValue)}</div><div class="label">End Value '25</div></div></div></div>
-                <div class="holding-detail-grid"><div class="holding-detail-item"><div class="holding-detail-label">Current Quantity</div><div class="holding-detail-value mono">${formatNumber(perf.quantity)}</div></div><div class="holding-detail-item"><div class="holding-detail-label">Current Price</div><div class="holding-detail-value mono">${perf.price ? formatCurrency(perf.price) : 'N/A'}</div></div><div class="holding-detail-item"><div class="holding-detail-label">End Value '25</div><div class="holding-detail-value mono">${formatCurrency(perf.endValue)}</div></div><div class="holding-detail-item"><div class="holding-detail-label">Start Value '24</div><div class="holding-detail-value mono">${formatCurrency(perf.startValue)}</div></div><div class="holding-detail-item highlight"><div class="holding-detail-label">True Market Gain</div><div class="holding-detail-value mono ${perf.trueMarketGain >= 0 ? 'value-positive' : 'value-negative'}">${perf.trueMarketGain >= 0 ? '+' : ''}${formatCurrency(perf.trueMarketGain)}</div></div><div class="holding-detail-item highlight"><div class="holding-detail-label">ROIC</div><div class="holding-detail-value ${perf.roic >= 0 ? 'value-positive' : 'value-negative'}">${perf.roic >= 0 ? '+' : ''}${perf.roic.toFixed(2)}%</div></div></div>
-                <h4 style="margin: 1.5rem 0 1rem; font-size: 0.875rem;">2025 Cash Flow Breakdown</h4><div class="holding-detail-grid"><div class="holding-detail-item"><div class="holding-detail-label">Purchases</div><div class="holding-detail-value mono">${formatCurrency(perf.buys)}</div></div><div class="holding-detail-item"><div class="holding-detail-label">Sales</div><div class="holding-detail-value mono">${formatCurrency(perf.sells)}</div></div><div class="holding-detail-item"><div class="holding-detail-label">Div Reinvested</div><div class="holding-detail-value mono">${formatCurrency(perf.reinvestments)}</div></div><div class="holding-detail-item"><div class="holding-detail-label">Net Invested</div><div class="holding-detail-value mono">${formatCurrency(perf.netInflows)}</div></div></div>
-                ${perf.costBasis ? `<h4 style="margin: 1.5rem 0 1rem; font-size: 0.875rem;">Cost Basis Information</h4><div class="holding-detail-grid"><div class="holding-detail-item"><div class="holding-detail-label">Cost Basis</div><div class="holding-detail-value mono">${formatCurrency(perf.costBasis)}</div></div><div class="holding-detail-item"><div class="holding-detail-label">Unrealized G/L</div><div class="holding-detail-value mono ${perf.unrealizedGainLoss >= 0 ? 'value-positive' : 'value-negative'}">${formatCurrency(perf.unrealizedGainLoss)}</div></div></div>` : ''}
-                ${relatedTx.length > 0 ? `<h4 style="margin: 1.5rem 0 1rem; font-size: 0.875rem;">2025 Transactions (${relatedTx.length})</h4><div style="max-height: 200px; overflow-y: auto;"><table style="font-size: 0.75rem;"><thead><tr><th>Date</th><th>Type</th><th class="text-right">Qty</th><th class="text-right">Amount</th></tr></thead><tbody>${relatedTx.sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 30).map(t => `<tr><td class="mono">${formatDate(t.date)}</td><td><span class="transaction-type ${t.type}">${t.type}</span></td><td class="text-right mono">${t.quantity ? formatNumber(t.quantity) : '-'}</td><td class="text-right mono ${t.amount >= 0 ? 'value-positive' : 'value-negative'}">${formatCurrency(t.amount)}</td></tr>`).join('')}</tbody></table></div>` : ''}`;
-            document.getElementById('holdingModal').classList.add('active');
-        }
+                                    <div className="bg-gradient-to-br from-emerald-900/30 to-cyan-900/30 backdrop-blur-sm border border-emerald-500/50 rounded-2xl p-6 shadow-lg shadow-emerald-500/20">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <span className="text-slate-300 text-sm font-medium">Lifetime Unrealized Gain</span>
+                                            <ArrowUpRight />
+                                        </div>
+                                        <div className="text-3xl font-bold text-emerald-400">{formatCurrency(unrealizedGain)}</div>
+                                        <div className="text-sm text-emerald-400 mt-2 font-semibold">{formatPercent(unrealizedGainPct)}</div>
+                                    </div>
+                                </div>
 
-        function closeModal() { document.getElementById('holdingModal').classList.remove('active'); }
+                                {/* Holdings Breakdown */}
+                                <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-2xl p-8">
+                                    <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
+                                        <PieChart />
+                                        Holdings Breakdown
+                                    </h2>
+                                    <div className="space-y-4">
+                                        {Object.entries(portfolioData.holdings2025.accountsByNumber).map(([accountNum, account]) => {
+                                            const accountName = portfolioData.accountNames[accountNum];
+                                            const accountGain = account.value - account.costBasis;
+                                            const accountGainPct = account.costBasis > 0 ? (accountGain / account.costBasis) * 100 : 0;
+                                            const percentage = (account.value / currentValue) * 100;
 
-        function formatCurrency(value) { return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value || 0); }
-        function formatCurrencyShort(value) { const abs = Math.abs(value); if (abs >= 1000000) return (value / 1000000).toFixed(1) + 'M'; else if (abs >= 1000) return (value / 1000).toFixed(1) + 'K'; return formatCurrency(value); }
-        function formatNumber(value) { return new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 3 }).format(value || 0); }
-        function formatDate(dateStr) { const date = new Date(dateStr); return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); }
-        function formatAccountNumber(num) { if (!num) return ''; if (num.length > 3) return num.substring(0, 3) + '-' + num.substring(3); return num; }
-        function truncate(str, len) { if (!str) return ''; return str.length > len ? str.substring(0, len) + '...' : str; }
-        function getAssetIconClass(assetClass) { switch (assetClass) { case 'Stock': return 'stock'; case 'ETF': return 'etf'; case 'Mutual Fund': return 'mutual'; case 'Money Market': return 'money'; default: return 'other'; } }
-        function showToast(message, type = 'success') { const container = document.getElementById('toastContainer'); const toast = document.createElement('div'); toast.className = `toast ${type}`; toast.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${type === 'success' ? '<polyline points="20 6 9 17 4 12"/>' : '<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>'}</svg>${message}`; container.appendChild(toast); setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3000); }
-        function toggleUpload() { document.getElementById('uploadSection').classList.toggle('collapsed'); }
+                                            // Skip zero-value accounts
+                                            if (account.value === 0) return null;
 
-        async function exportData() {
-            const data = { holdings2024, holdings2025, transactions, performanceData, exportDate: new Date().toISOString() };
-            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a'); a.href = url; a.download = `portfolio-export-${new Date().toISOString().split('T')[0]}.json`; a.click();
-            URL.revokeObjectURL(url);
-            showToast('Data exported successfully', 'success');
-        }
+                                            return (
+                                                <div key={accountNum} className="bg-slate-800/50 rounded-xl p-5 border border-slate-700 hover:border-slate-600 transition-all">
+                                                    <div className="flex justify-between items-start mb-3">
+                                                        <div>
+                                                            <h3 className="font-semibold text-lg text-slate-200">{accountName}</h3>
+                                                            <p className="text-sm text-slate-500">{account.holdings} holdings · {accountNum}</p>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <div className="text-xl font-bold text-slate-100">{formatCurrency(account.value)}</div>
+                                                            <div className={`text-sm font-semibold ${accountGain >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                                {formatCurrency(accountGain)} ({formatPercent(accountGainPct)})
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="relative h-2 bg-slate-700/50 rounded-full overflow-hidden">
+                                                        <div 
+                                                            className="absolute h-full bg-gradient-to-r from-emerald-400 to-cyan-400 rounded-full transition-all duration-500"
+                                                            style={{ width: `${percentage}%` }}
+                                                        />
+                                                    </div>
+                                                    <div className="text-xs text-slate-500 mt-2">{percentage.toFixed(1)}% of portfolio</div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
-        async function clearAllData() {
-            if (!confirm('Are you sure you want to clear all portfolio data? This cannot be undone.')) return;
-            holdings2024 = []; holdings2025 = []; transactions = []; performanceData = [];
-            await saveToStore('holdings2024', []); await saveToStore('holdings2025', []); await saveToStore('transactions', []);
-            document.getElementById('holdings2024List').innerHTML = ''; document.getElementById('holdings2025List').innerHTML = ''; document.getElementById('transactionsList').innerHTML = '';
-            updateUI();
-            showToast('All data cleared', 'success');
-        }
+                        {activeTab === '2025' && (
+                            <div className="space-y-6 animate-fadeIn">
+                                {/* Summary Cards */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-2xl p-6">
+                                        <h3 className="text-slate-400 text-sm font-medium mb-4">Portfolio Growth in 2025</h3>
+                                        <div className="text-4xl font-bold text-cyan-400 mb-2">{formatCurrency(totalChange)}</div>
+                                        <div className="text-lg text-cyan-400 font-semibold">{formatPercent(totalChangePct)}</div>
+                                    </div>
 
-        document.querySelectorAll('.tab').forEach(tab => { tab.addEventListener('click', () => { document.querySelectorAll('.tab').forEach(t => t.classList.remove('active')); tab.classList.add('active'); const tabName = tab.dataset.tab; document.getElementById('accountsView').style.display = tabName === 'accounts' ? 'block' : 'none'; document.getElementById('holdingsView').style.display = tabName === 'holdings' ? 'block' : 'none'; document.getElementById('transactionsView').style.display = tabName === 'transactions' ? 'block' : 'none'; }); });
-        document.querySelectorAll('.filter-pill[data-filter]').forEach(pill => { pill.addEventListener('click', () => { document.querySelectorAll('.filter-pill[data-filter]').forEach(p => p.classList.remove('active')); pill.classList.add('active'); currentFilter = pill.dataset.filter; updateHoldingsView(); }); });
-        document.querySelectorAll('.filter-pill[data-txfilter]').forEach(pill => { pill.addEventListener('click', () => { document.querySelectorAll('.filter-pill[data-txfilter]').forEach(p => p.classList.remove('active')); pill.classList.add('active'); currentTxFilter = pill.dataset.txfilter; updateTransactionsView(); }); });
-        document.getElementById('holdingsSearch')?.addEventListener('input', updateHoldingsView);
-        document.getElementById('transactionsSearch')?.addEventListener('input', updateTransactionsView);
-        document.getElementById('holdingModal').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeModal(); });
-        document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
+                                    <div className="bg-gradient-to-br from-cyan-900/30 to-blue-900/30 backdrop-blur-sm border border-cyan-500/50 rounded-2xl p-6 shadow-lg shadow-cyan-500/20">
+                                        <h3 className="text-slate-300 text-sm font-medium mb-4">True Market Gain</h3>
+                                        <div className="text-4xl font-bold text-cyan-400 mb-2">{formatCurrency(marketGain)}</div>
+                                        <div className="text-lg text-cyan-400 font-semibold">{formatPercent(marketGainPct)} ROIC</div>
+                                    </div>
+                                </div>
 
-        async function init() {
-            await initDB();
-            holdings2024 = await loadFromStore('holdings2024');
-            holdings2025 = await loadFromStore('holdings2025');
-            transactions = await loadFromStore('transactions');
-            if (holdings2024.length > 0) updateFileList('holdings2024List', ['2024 Holdings (cached)']);
-            if (holdings2025.length > 0) updateFileList('holdings2025List', ['2025 Holdings (cached)']);
-            if (transactions.length > 0) updateTransactionsList();
-            calculatePerformanceBridge();
-            setupDragDrop();
-            updateUI();
-            if (holdings2025.length > 0) document.getElementById('uploadSection').classList.add('collapsed');
-        }
+                                {/* Waterfall Analysis */}
+                                <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-2xl p-8">
+                                    <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
+                                        <BarChart3 />
+                                        2025 Waterfall Analysis
+                                    </h2>
 
-        init();
+                                    <div className="space-y-6">
+                                        {/* Starting Value */}
+                                        <div className="flex justify-between items-center p-5 bg-slate-800/50 rounded-xl border border-slate-700">
+                                            <div className="flex items-center">
+                                                <div className="w-3 h-3 bg-blue-500 rounded-full mr-4" />
+                                                <span className="font-semibold text-lg">Starting Value (2024)</span>
+                                            </div>
+                                            <span className="text-2xl font-bold text-blue-400">{formatCurrency(startValue)}</span>
+                                        </div>
+
+                                        {/* Cash Moves Section */}
+                                        <div className="ml-8 pl-6 border-l-2 border-slate-700 space-y-4">
+                                            <div className="text-slate-400 font-semibold mb-3">Cash Moves</div>
+                                            
+                                            <div className="flex justify-between items-center p-4 bg-slate-800/30 rounded-lg">
+                                                <div className="flex items-center">
+                                                    <ArrowUpRight />
+                                                    <span className="text-slate-300 ml-3">2025 Purchases</span>
+                                                </div>
+                                                <span className="text-lg font-semibold text-green-400">+{formatCurrency(portfolioData.transactions2025.purchases)}</span>
+                                            </div>
+
+                                            <div className="flex justify-between items-center p-4 bg-slate-800/30 rounded-lg">
+                                                <div className="flex items-center">
+                                                    <ArrowUpRight />
+                                                    <span className="text-slate-300 ml-3">Dividends Reinvested</span>
+                                                </div>
+                                                <span className="text-lg font-semibold text-green-400">+{formatCurrency(portfolioData.transactions2025.dividendsReinvested)}</span>
+                                            </div>
+
+                                            <div className="flex justify-between items-center p-4 bg-slate-800/30 rounded-lg">
+                                                <div className="flex items-center">
+                                                    <ArrowDownRight />
+                                                    <span className="text-slate-300 ml-3">2025 Sales</span>
+                                                </div>
+                                                <span className="text-lg font-semibold text-red-400">-{formatCurrency(portfolioData.transactions2025.sales)}</span>
+                                            </div>
+
+                                            <div className="flex justify-between items-center p-5 bg-emerald-900/20 rounded-xl border border-emerald-700/50">
+                                                <span className="font-semibold">Net Cash Inflows</span>
+                                                <span className="text-xl font-bold text-emerald-400">+{formatCurrency(netInflows)}</span>
+                                            </div>
+                                        </div>
+
+                                        {/* Market Move */}
+                                        <div className="ml-8 pl-6 border-l-2 border-slate-700">
+                                            <div className="text-slate-400 font-semibold mb-3">Market Moves</div>
+                                            
+                                            <div className="flex justify-between items-center p-5 bg-gradient-to-r from-cyan-900/30 to-blue-900/30 rounded-xl border border-cyan-600/50">
+                                                <div>
+                                                    <span className="font-semibold text-lg">Market Gain (Price Appreciation)</span>
+                                                    <div className="text-sm text-slate-400 mt-1">Pure performance excluding cash flows</div>
+                                                </div>
+                                                <div className="text-right">
+                                                    <div className="text-2xl font-bold text-cyan-400">{formatCurrency(marketGain)}</div>
+                                                    <div className="text-sm text-cyan-400 font-semibold">{formatPercent(marketGainPct)} ROIC</div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Ending Value */}
+                                        <div className="flex justify-between items-center p-5 bg-gradient-to-r from-emerald-900/40 to-cyan-900/40 rounded-xl border border-emerald-500/50 shadow-lg shadow-emerald-500/20">
+                                            <div className="flex items-center">
+                                                <div className="w-3 h-3 bg-emerald-400 rounded-full mr-4" />
+                                                <span className="font-semibold text-lg">Ending Value (2025)</span>
+                                            </div>
+                                            <span className="text-3xl font-bold text-emerald-400">{formatCurrency(endValue)}</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Summary Equation */}
+                                    <div className="mt-8 p-6 bg-slate-800/30 rounded-xl border border-slate-700">
+                                        <div className="text-center text-slate-300 font-mono text-sm">
+                                            <span className="text-blue-400 font-semibold">{formatCurrency(startValue)}</span>
+                                            {' + '}
+                                            <span className="text-emerald-400 font-semibold">{formatCurrency(netInflows)}</span>
+                                            {' + '}
+                                            <span className="text-cyan-400 font-semibold">{formatCurrency(marketGain)}</span>
+                                            {' = '}
+                                            <span className="text-emerald-400 font-bold text-base">{formatCurrency(endValue)}</span>
+                                        </div>
+                                        <div className="text-center text-xs text-slate-500 mt-2">
+                                            Start Value + Net Inflows + Market Gain = End Value
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        ReactDOM.render(<PortfolioDashboard />, document.getElementById('root'));
     </script>
 </body>
 </html>
