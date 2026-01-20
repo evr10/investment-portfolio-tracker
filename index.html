@@ -24,11 +24,66 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useRef } = React;
+        const { useState, useEffect } = React;
+
+        // ========== CONFIGURATION ==========
+        const STARTING_CASH_BALANCE = 0; // Set this to your actual starting cash/margin balance
+        // Example: If you had a -$5,000 margin loan before your CSV data starts, set this to -5000
+        // ===================================
 
         const normalizeAccountNumber = (accountNum) => {
             if (!accountNum) return '';
             return accountNum.toString().replace(/[-\s]/g, '');
+        };
+
+        const isHSAAccount = (accountName) => {
+            return accountName && accountName.toUpperCase().includes('HEALTH SAVINGS');
+        };
+
+        // Calculate cash balance from transactions up to a cutoff date
+        const calculateCashBalance = (transactions, cutoffDate) => {
+            if (!transactions || transactions.length === 0) return STARTING_CASH_BALANCE;
+
+            let balance = STARTING_CASH_BALANCE;
+            const cutoff = new Date(cutoffDate);
+
+            transactions.forEach(trans => {
+                // Skip HSA transactions
+                if (trans.type === 'HSA') return;
+
+                const transDate = new Date(trans.date);
+                if (transDate > cutoff) return;
+
+                const action = trans.action.toUpperCase();
+                const amount = trans.amount || 0;
+
+                // Cash inflows (+)
+                if (action.includes('ELECTRONIC FUNDS TRANSFER') && amount > 0) {
+                    balance += amount;
+                }
+                // Cash outflows (-)
+                else if (action.includes('WIRE TRANSFER')) {
+                    balance += amount; // Amount is already negative
+                }
+                // Stock purchases reduce cash
+                else if (trans.type === 'Buy' && amount < 0) {
+                    balance += amount; // Amount is already negative
+                }
+                // Stock sales increase cash
+                else if (trans.type === 'Sell' && amount > 0) {
+                    balance += amount;
+                }
+                // Dividends received (not reinvested) increase cash
+                else if (trans.type === 'Dividend' && amount > 0) {
+                    balance += amount;
+                }
+                // Fees reduce cash
+                else if (trans.type === 'Fee' && amount < 0) {
+                    balance += amount; // Amount is already negative
+                }
+            });
+
+            return balance;
         };
 
         // Icons
@@ -142,7 +197,14 @@
                     }
 
                     let type = 'Other';
-                    if (action.includes('REINVESTMENT')) {
+                    
+                    if (isHSAAccount(accountName)) {
+                        type = 'HSA';
+                    } else if (action.includes('MARGIN INTEREST') || action.includes('FEE')) {
+                        type = 'Fee';
+                    } else if (action.includes('CONTRIBUTION')) {
+                        type = 'Buy';
+                    } else if (action.includes('REINVESTMENT')) {
                         type = 'Reinvestment';
                     } else if (action.includes('DIVIDEND')) {
                         type = 'Dividend';
@@ -165,6 +227,10 @@
                         type: type
                     });
 
+                    if (isHSAAccount(accountName) || type === 'Fee') {
+                        return;
+                    }
+
                     if (accountNum && !accountTransactions[accountNum]) {
                         accountTransactions[accountNum] = {
                             purchases: 0,
@@ -174,7 +240,11 @@
                         };
                     }
 
-                    if (action.includes('REINVESTMENT')) {
+                    if (action.includes('CONTRIBUTION')) {
+                        const contributionAmount = Math.abs(amount);
+                        purchases += contributionAmount;
+                        if (accountNum) accountTransactions[accountNum].purchases += contributionAmount;
+                    } else if (action.includes('REINVESTMENT')) {
                         const reinvAmount = Math.abs(amount);
                         dividendsReinvested += reinvAmount;
                         if (accountNum) accountTransactions[accountNum].dividendsReinvested += reinvAmount;
@@ -218,32 +288,66 @@
 
                         if (type === '2024') {
                             const holdings2024 = await processHoldingsCSV(file);
-                            setPortfolioData(prev => ({
-                                ...prev,
-                                holdings2024: {
-                                    totalValue: (prev?.holdings2024?.totalValue || 0) + holdings2024.totalValue,
-                                    totalCostBasis: (prev?.holdings2024?.totalCostBasis || 0) + holdings2024.totalCostBasis,
-                                    accountsByNumber: {
-                                        ...(prev?.holdings2024?.accountsByNumber || {}),
-                                        ...holdings2024.accountsByNumber
-                                    },
-                                    allHoldings: [...(prev?.holdings2024?.allHoldings || []), ...holdings2024.allHoldings]
-                                }
-                            }));
+                            setPortfolioData(prev => {
+                                const filteredAccounts = {};
+                                const filteredHoldings = [];
+                                let filteredValue = 0;
+                                let filteredCostBasis = 0;
+
+                                Object.entries(holdings2024.accountsByNumber).forEach(([accountNum, data]) => {
+                                    filteredAccounts[accountNum] = data;
+                                    filteredValue += data.value;
+                                    filteredCostBasis += data.costBasis;
+                                });
+
+                                holdings2024.allHoldings.forEach(holding => {
+                                    filteredHoldings.push(holding);
+                                });
+
+                                return {
+                                    ...prev,
+                                    holdings2024: {
+                                        totalValue: (prev?.holdings2024?.totalValue || 0) + filteredValue,
+                                        totalCostBasis: (prev?.holdings2024?.totalCostBasis || 0) + filteredCostBasis,
+                                        accountsByNumber: {
+                                            ...(prev?.holdings2024?.accountsByNumber || {}),
+                                            ...filteredAccounts
+                                        },
+                                        allHoldings: [...(prev?.holdings2024?.allHoldings || []), ...filteredHoldings]
+                                    }
+                                };
+                            });
                         } else if (type === '2025') {
                             const holdings2025 = await processHoldingsCSV(file);
-                            setPortfolioData(prev => ({
-                                ...prev,
-                                holdings2025: {
-                                    totalValue: (prev?.holdings2025?.totalValue || 0) + holdings2025.totalValue,
-                                    totalCostBasis: (prev?.holdings2025?.totalCostBasis || 0) + holdings2025.totalCostBasis,
-                                    accountsByNumber: {
-                                        ...(prev?.holdings2025?.accountsByNumber || {}),
-                                        ...holdings2025.accountsByNumber
-                                    },
-                                    allHoldings: [...(prev?.holdings2025?.allHoldings || []), ...holdings2025.allHoldings]
-                                }
-                            }));
+                            setPortfolioData(prev => {
+                                const filteredAccounts = {};
+                                const filteredHoldings = [];
+                                let filteredValue = 0;
+                                let filteredCostBasis = 0;
+
+                                Object.entries(holdings2025.accountsByNumber).forEach(([accountNum, data]) => {
+                                    filteredAccounts[accountNum] = data;
+                                    filteredValue += data.value;
+                                    filteredCostBasis += data.costBasis;
+                                });
+
+                                holdings2025.allHoldings.forEach(holding => {
+                                    filteredHoldings.push(holding);
+                                });
+
+                                return {
+                                    ...prev,
+                                    holdings2025: {
+                                        totalValue: (prev?.holdings2025?.totalValue || 0) + filteredValue,
+                                        totalCostBasis: (prev?.holdings2025?.totalCostBasis || 0) + filteredCostBasis,
+                                        accountsByNumber: {
+                                            ...(prev?.holdings2025?.accountsByNumber || {}),
+                                            ...filteredAccounts
+                                        },
+                                        allHoldings: [...(prev?.holdings2025?.allHoldings || []), ...filteredHoldings]
+                                    }
+                                };
+                            });
                         } else if (type === 'transactions') {
                             const trans = await processTransactionsCSV(file);
                             setPortfolioData(prev => ({
@@ -261,7 +365,6 @@
                         }
                     }
                     
-                    // Reset input to allow re-uploading
                     event.target.value = '';
                 } catch (error) {
                     alert(`Error processing ${type} files: ${error.message}`);
@@ -300,19 +403,46 @@
                 return value.toFixed(0);
             };
 
-            // Filter transactions
             const filteredTransactions = portfolioData?.allTransactions?.filter(trans => {
                 if (transactionFilter === 'All') return true;
                 return trans.type === transactionFilter;
             }) || [];
 
-            const currentValue = portfolioData?.holdings2025?.totalValue || 0;
-            const costBasis = portfolioData?.holdings2025?.totalCostBasis || 0;
+            const getNonHSAAccounts = (accountsByNumber) => {
+                if (!accountsByNumber) return {};
+                const filtered = {};
+                Object.entries(accountsByNumber).forEach(([accountNum, data]) => {
+                    const accountName = portfolioData?.accountNames?.[accountNum];
+                    if (!isHSAAccount(accountName)) {
+                        filtered[accountNum] = data;
+                    }
+                });
+                return filtered;
+            };
+
+            const getNonHSAHoldings = (allHoldings) => {
+                if (!allHoldings) return [];
+                return allHoldings.filter(holding => {
+                    const accountName = portfolioData?.accountNames?.[holding.accountNumber];
+                    return !isHSAAccount(accountName);
+                });
+            };
+
+            // Calculate cash/margin balances
+            const cashBalance2024 = calculateCashBalance(portfolioData?.allTransactions, '2024-12-31');
+            const cashBalance2025 = calculateCashBalance(portfolioData?.allTransactions, '2025-12-31');
+
+            const nonHSAHoldings2025 = getNonHSAHoldings(portfolioData?.holdings2025?.allHoldings);
+            const stocksValue2025 = nonHSAHoldings2025.reduce((sum, h) => sum + h.marketValue, 0);
+            const currentValue = stocksValue2025 + cashBalance2025;
+            const costBasis = nonHSAHoldings2025.reduce((sum, h) => sum + h.costBasis, 0);
             const unrealizedGain = currentValue - costBasis;
             const unrealizedGainPct = costBasis > 0 ? (unrealizedGain / costBasis) * 100 : 0;
 
-            const startValue = portfolioData?.holdings2024?.totalValue || 0;
-            const endValue = portfolioData?.holdings2025?.totalValue || 0;
+            const nonHSAHoldings2024 = getNonHSAHoldings(portfolioData?.holdings2024?.allHoldings);
+            const stocksValue2024 = nonHSAHoldings2024.reduce((sum, h) => sum + h.marketValue, 0);
+            const startValue = stocksValue2024 + cashBalance2024;
+            const endValue = currentValue;
             const netInflows = portfolioData?.transactions2025?.netInvested || 0;
             const marketGain = endValue - (startValue + netInflows);
             const marketGainPct = (startValue + netInflows) > 0 ? (marketGain / (startValue + netInflows)) * 100 : 0;
@@ -320,6 +450,9 @@
             const totalChangePct = startValue > 0 ? (totalChange / startValue) * 100 : 0;
 
             const hasData = portfolioData && portfolioData.holdings2025;
+
+            const nonHSAAccounts2025 = getNonHSAAccounts(portfolioData?.holdings2025?.accountsByNumber);
+            const nonHSAAccounts2024 = getNonHSAAccounts(portfolioData?.holdings2024?.accountsByNumber);
 
             return (
                 <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100">
@@ -389,8 +522,16 @@
                                             <input type="file" accept=".csv" multiple onChange={(e) => handleFileUpload(e, 'transactions')} className="block w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-emerald-900/20 file:text-emerald-400 hover:file:bg-emerald-900/30 file:cursor-pointer cursor-pointer" />
                                         </div>
                                     </div>
+                                    <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
+                                        <div className="text-sm text-slate-400 mb-2">
+                                            <span className="font-semibold text-slate-300">Cash/Margin Balance Tracking:</span> Starting balance is set to <span className="text-cyan-400 font-mono">{formatCurrency(STARTING_CASH_BALANCE)}</span>
+                                        </div>
+                                        <div className="text-xs text-slate-500">
+                                            To change: Edit <code className="bg-slate-900 px-2 py-1 rounded text-cyan-400">STARTING_CASH_BALANCE</code> at the top of the code.
+                                        </div>
+                                    </div>
                                     <p className="text-xs text-slate-500">
-                                        Select one or multiple CSV files. You can upload additional files anytime. Data is stored locally in your browser.
+                                        Select one or multiple CSV files. <span className="text-amber-400">HSA accounts and fees are excluded from calculations.</span> Cash and margin balances are calculated automatically from transactions.
                                     </p>
                                 </div>
                             )}
@@ -404,6 +545,34 @@
                             </div>
                         ) : (
                             <>
+                                {/* Cash/Margin Balance Indicator */}
+                                <div className="mb-6 bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-xl p-4">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <div className="text-xs text-slate-500 mb-1">CALCULATED CASH/MARGIN BALANCE</div>
+                                            <div className="flex items-center gap-4">
+                                                <div>
+                                                    <span className="text-xs text-slate-400">2024: </span>
+                                                    <span className={`font-semibold ${cashBalance2024 >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                        {formatCurrency(cashBalance2024)}
+                                                    </span>
+                                                </div>
+                                                <div>
+                                                    <span className="text-xs text-slate-400">2025: </span>
+                                                    <span className={`font-semibold ${cashBalance2025 >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                        {formatCurrency(cashBalance2025)}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <div className="text-xs text-slate-500">
+                                                {cashBalance2025 >= 0 ? '💰 Cash Position' : '📊 Margin Loan'}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
                                 <div className="flex gap-4 mb-8 border-b border-slate-800 pb-1">
                                     <button onClick={() => setActiveTab('alltime')} className={`px-6 py-3 font-semibold text-lg transition-all duration-300 relative ${activeTab === 'alltime' ? 'text-emerald-400' : 'text-slate-500 hover:text-slate-300'}`}>
                                         <span className="inline-flex items-center gap-2"><TrendingUp />All-Time Performance</span>
@@ -420,15 +589,19 @@
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                             <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-2xl p-6 hover:border-emerald-500/50 transition-all duration-300">
                                                 <div className="flex items-center justify-between mb-2">
-                                                    <span className="text-slate-400 text-sm font-medium">Current Market Value</span><DollarSign />
+                                                    <span className="text-slate-400 text-sm font-medium">Total Portfolio Value</span><DollarSign />
                                                 </div>
                                                 <div className="text-3xl font-bold text-emerald-400">{formatCurrency(currentValue)}</div>
+                                                <div className="text-xs text-slate-500 mt-1">
+                                                    Stocks: {formatCurrency(stocksValue2025)} | Cash: {formatCurrency(cashBalance2025)}
+                                                </div>
                                             </div>
                                             <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-2xl p-6 hover:border-blue-500/50 transition-all duration-300">
                                                 <div className="flex items-center justify-between mb-2">
                                                     <span className="text-slate-400 text-sm font-medium">Total Cost Basis</span><BarChart3 />
                                                 </div>
                                                 <div className="text-3xl font-bold text-blue-400">{formatCurrency(costBasis)}</div>
+                                                <div className="text-xs text-slate-500 mt-1">Stocks only (excl. HSA)</div>
                                             </div>
                                             <div className="bg-gradient-to-br from-emerald-900/30 to-cyan-900/30 backdrop-blur-sm border border-emerald-500/50 rounded-2xl p-6 shadow-lg shadow-emerald-500/20">
                                                 <div className="flex items-center justify-between mb-2">
@@ -440,13 +613,44 @@
                                         </div>
 
                                         <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-2xl p-8">
-                                            <h2 className="text-2xl font-bold mb-6 flex items-center gap-3"><PieChart />Holdings Breakdown</h2>
+                                            <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
+                                                <PieChart />Holdings Breakdown
+                                                <span className="text-xs text-slate-500 font-normal">(HSA excluded)</span>
+                                            </h2>
                                             <div className="space-y-4">
-                                                {portfolioData?.holdings2025?.accountsByNumber && Object.entries(portfolioData.holdings2025.accountsByNumber).map(([accountNum, account]) => {
+                                                {/* Cash/Margin as first entry if significant */}
+                                                {Math.abs(cashBalance2025) > 100 && (
+                                                    <div className="bg-slate-800/50 rounded-xl p-5 border border-slate-700 hover:border-slate-600 transition-all">
+                                                        <div className="flex justify-between items-start mb-3">
+                                                            <div>
+                                                                <h3 className="font-semibold text-lg text-slate-200">
+                                                                    {cashBalance2025 >= 0 ? '💵 Cash Balance' : '📊 Margin Loan'}
+                                                                </h3>
+                                                                <p className="text-sm text-slate-500">Calculated from transactions</p>
+                                                            </div>
+                                                            <div className="text-right">
+                                                                <div className={`text-xl font-bold ${cashBalance2025 >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                                    {formatCurrency(Math.abs(cashBalance2025))}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div className="relative h-2 bg-slate-700/50 rounded-full overflow-hidden">
+                                                            <div className={`absolute h-full rounded-full transition-all duration-500 ${cashBalance2025 >= 0 ? 'bg-gradient-to-r from-emerald-400 to-cyan-400' : 'bg-gradient-to-r from-red-500 to-orange-500'}`} style={{ width: `${Math.min(Math.abs(cashBalance2025) / currentValue * 100, 100)}%` }} />
+                                                        </div>
+                                                        <div className="text-xs text-slate-500 mt-2">
+                                                            {cashBalance2025 >= 0 
+                                                                ? `${(cashBalance2025 / currentValue * 100).toFixed(1)}% of portfolio`
+                                                                : `Leveraged position`
+                                                            }
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {Object.entries(nonHSAAccounts2025).map(([accountNum, account]) => {
                                                     const accountName = portfolioData.accountNames?.[accountNum] || accountNum;
                                                     const accountGain = account.value - account.costBasis;
                                                     const accountGainPct = account.costBasis > 0 ? (accountGain / account.costBasis) * 100 : 0;
-                                                    const percentage = currentValue > 0 ? (account.value / currentValue) * 100 : 0;
+                                                    const percentage = stocksValue2025 > 0 ? (account.value / stocksValue2025) * 100 : 0;
                                                     if (account.value === 0) return null;
 
                                                     return (
@@ -466,7 +670,7 @@
                                                             <div className="relative h-2 bg-slate-700/50 rounded-full overflow-hidden">
                                                                 <div className="absolute h-full bg-gradient-to-r from-emerald-400 to-cyan-400 rounded-full transition-all duration-500" style={{ width: `${percentage}%` }} />
                                                             </div>
-                                                            <div className="text-xs text-slate-500 mt-2">{percentage.toFixed(1)}% of portfolio</div>
+                                                            <div className="text-xs text-slate-500 mt-2">{percentage.toFixed(1)}% of stock holdings</div>
                                                         </div>
                                                     );
                                                 })}
@@ -486,6 +690,7 @@
                                             <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-xl p-4">
                                                 <div className="text-slate-400 text-xs font-medium mb-1">2024 STARTING VALUE</div>
                                                 <div className="text-xl font-bold text-slate-200">{formatCurrency(startValue)}</div>
+                                                <div className="text-xs text-slate-500 mt-1">Stocks + Cash</div>
                                             </div>
                                             <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-xl p-4">
                                                 <div className="text-slate-400 text-xs font-medium mb-1">NET INVESTED '25</div>
@@ -525,9 +730,9 @@
 
                                         {subTab === 'byaccount' && (
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fadeIn">
-                                                {portfolioData?.holdings2025?.accountsByNumber && Object.entries(portfolioData.holdings2025.accountsByNumber).map(([accountNum, account2025]) => {
+                                                {Object.entries(nonHSAAccounts2025).map(([accountNum, account2025]) => {
                                                     const accountName = portfolioData.accountNames?.[accountNum] || accountNum;
-                                                    const account2024 = portfolioData.holdings2024?.accountsByNumber?.[accountNum] || { value: 0 };
+                                                    const account2024 = nonHSAAccounts2024[accountNum] || { value: 0 };
                                                     const acctTrans = portfolioData.accountTransactions?.[accountNum] || { netInvested: 0 };
                                                     const accountMarketGain = account2025.value - (account2024.value + acctTrans.netInvested);
                                                     const accountROIC = (account2024.value + acctTrans.netInvested) > 0 
@@ -577,7 +782,10 @@
 
                                         {subTab === 'allholdings' && (
                                             <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-2xl p-8 animate-fadeIn">
-                                                <h2 className="text-xl font-bold mb-6">All Holdings ({portfolioData?.holdings2025?.allHoldings?.length || 0} positions)</h2>
+                                                <h2 className="text-xl font-bold mb-6">
+                                                    All Holdings ({nonHSAHoldings2025.length} positions + Cash/Margin)
+                                                    <span className="text-xs text-slate-500 font-normal ml-2">(HSA excluded)</span>
+                                                </h2>
                                                 <div className="overflow-x-auto">
                                                     <table className="w-full text-sm">
                                                         <thead className="border-b border-slate-700">
@@ -594,7 +802,30 @@
                                                             </tr>
                                                         </thead>
                                                         <tbody>
-                                                            {portfolioData?.holdings2025?.allHoldings?.map((holding, idx) => {
+                                                            {/* Cash/Margin as first row */}
+                                                            {Math.abs(cashBalance2025) > 1 && (
+                                                                <tr className="border-b border-slate-800/50 bg-slate-800/30">
+                                                                    <td className="py-3 px-2 text-slate-300">All Accounts</td>
+                                                                    <td className="py-3 px-2 font-semibold text-slate-200">
+                                                                        {cashBalance2025 >= 0 ? 'CASH' : 'MARGIN'}
+                                                                    </td>
+                                                                    <td className="py-3 px-2 text-slate-400 text-xs">
+                                                                        {cashBalance2025 >= 0 ? 'Cash Balance' : 'Margin Loan Balance'}
+                                                                    </td>
+                                                                    <td className="py-3 px-2 text-slate-400 text-xs">
+                                                                        {cashBalance2025 >= 0 ? 'Cash' : 'Liability'}
+                                                                    </td>
+                                                                    <td className="py-3 px-2 text-right text-slate-300">-</td>
+                                                                    <td className="py-3 px-2 text-right text-slate-300">-</td>
+                                                                    <td className={`py-3 px-2 text-right font-semibold ${cashBalance2025 >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                                        {formatCurrency(cashBalance2025)}
+                                                                    </td>
+                                                                    <td className="py-3 px-2 text-right text-slate-400">-</td>
+                                                                    <td className="py-3 px-2 text-right text-slate-400">-</td>
+                                                                </tr>
+                                                            )}
+
+                                                            {nonHSAHoldings2025.map((holding, idx) => {
                                                                 const accountName = portfolioData.accountNames?.[holding.accountNumber] || holding.accountNumber;
                                                                 return (
                                                                     <tr key={idx} className="border-b border-slate-800/50 hover:bg-slate-800/30">
@@ -623,13 +854,15 @@
                                                 <div className="flex justify-between items-center mb-6">
                                                     <h2 className="text-xl font-bold">All Transactions ({filteredTransactions.length} of {portfolioData?.allTransactions?.length || 0})</h2>
                                                     <div className="flex gap-2">
-                                                        {['All', 'Buy', 'Sell', 'Dividend', 'Reinvestment', 'Other'].map(type => {
+                                                        {['All', 'Buy', 'Sell', 'Dividend', 'Reinvestment', 'Fee', 'HSA', 'Other'].map(type => {
                                                             let buttonClass = 'px-3 py-1.5 rounded-lg text-sm font-medium transition-all';
                                                             if (transactionFilter === type) {
                                                                 if (type === 'Buy') buttonClass += ' bg-blue-900/50 text-blue-400 border border-blue-600/50';
                                                                 else if (type === 'Sell') buttonClass += ' bg-red-900/50 text-red-400 border border-red-600/50';
                                                                 else if (type === 'Dividend') buttonClass += ' bg-green-900/50 text-green-400 border border-green-600/50';
                                                                 else if (type === 'Reinvestment') buttonClass += ' bg-purple-900/50 text-purple-400 border border-purple-600/50';
+                                                                else if (type === 'Fee') buttonClass += ' bg-orange-900/50 text-orange-400 border border-orange-600/50';
+                                                                else if (type === 'HSA') buttonClass += ' bg-amber-900/50 text-amber-400 border border-amber-600/50';
                                                                 else buttonClass += ' bg-slate-700 text-slate-100 border border-slate-600';
                                                             } else {
                                                                 buttonClass += ' bg-slate-800/50 text-slate-400 hover:text-slate-200 border border-slate-700/50';
@@ -664,6 +897,8 @@
                                                                 else if (trans.type === 'Sell') typeColor = 'bg-red-900/50 text-red-400';
                                                                 else if (trans.type === 'Dividend') typeColor = 'bg-green-900/50 text-green-400';
                                                                 else if (trans.type === 'Reinvestment') typeColor = 'bg-purple-900/50 text-purple-400';
+                                                                else if (trans.type === 'Fee') typeColor = 'bg-orange-900/50 text-orange-400';
+                                                                else if (trans.type === 'HSA') typeColor = 'bg-amber-900/50 text-amber-400';
 
                                                                 return (
                                                                     <tr key={idx} className="border-b border-slate-800/50 hover:bg-slate-800/30">
