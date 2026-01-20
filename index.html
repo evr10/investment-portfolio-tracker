@@ -339,18 +339,47 @@
 
                         {activeTab === '2025' && (
                             <div className="space-y-6 animate-fadeIn">
-                                {/* Summary Cards */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-2xl p-6">
-                                        <h3 className="text-slate-400 text-sm font-medium mb-4">Portfolio Growth in 2025</h3>
-                                        <div className="text-4xl font-bold text-cyan-400 mb-2">{formatCurrency(totalChange)}</div>
-                                        <div className="text-lg text-cyan-400 font-semibold">{formatPercent(totalChangePct)}</div>
+                                {/* Top Metrics Overview */}
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                    <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-xl p-4">
+                                        <div className="text-slate-400 text-xs font-medium mb-1">2024 Starting Value</div>
+                                        <div className="text-xl font-bold text-slate-200">{formatCurrency(startValue)}</div>
                                     </div>
 
-                                    <div className="bg-gradient-to-br from-cyan-900/30 to-blue-900/30 backdrop-blur-sm border border-cyan-500/50 rounded-2xl p-6 shadow-lg shadow-cyan-500/20">
-                                        <h3 className="text-slate-300 text-sm font-medium mb-4">True Market Gain</h3>
-                                        <div className="text-4xl font-bold text-cyan-400 mb-2">{formatCurrency(marketGain)}</div>
-                                        <div className="text-lg text-cyan-400 font-semibold">{formatPercent(marketGainPct)} ROIC</div>
+                                    <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-xl p-4">
+                                        <div className="text-slate-400 text-xs font-medium mb-1">Net Invested '25</div>
+                                        <div className="text-xl font-bold text-emerald-400">{formatCurrency(netInflows)}</div>
+                                        <div className="text-xs text-slate-500">Buys + Reinv - Sells</div>
+                                    </div>
+
+                                    <div className="bg-gradient-to-br from-cyan-900/30 to-blue-900/30 backdrop-blur-sm border border-cyan-500/50 rounded-xl p-4 shadow-lg shadow-cyan-500/20">
+                                        <div className="text-slate-300 text-xs font-medium mb-1">True Market Gain</div>
+                                        <div className="text-xl font-bold text-cyan-400">{formatCurrency(marketGain)}</div>
+                                        <div className="text-xs text-cyan-400 font-semibold">{formatPercent(marketGainPct)} ROIC</div>
+                                    </div>
+
+                                    <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-xl p-4">
+                                        <div className="text-slate-400 text-xs font-medium mb-1">Total Portfolio Value</div>
+                                        <div className="text-xl font-bold text-slate-200">{formatCurrency(endValue)}</div>
+                                        <div className="text-xs text-emerald-400">▲ {formatPercent(totalChangePct)} vs 2024</div>
+                                    </div>
+                                </div>
+
+                                {/* Transaction Breakdown */}
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-xl p-5">
+                                        <div className="text-slate-400 text-sm font-medium mb-2">2025 Purchases</div>
+                                        <div className="text-2xl font-bold text-slate-100">{formatCurrency(portfolioData.transactions2025.purchases)}</div>
+                                    </div>
+
+                                    <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-xl p-5">
+                                        <div className="text-slate-400 text-sm font-medium mb-2">2025 Sales</div>
+                                        <div className="text-2xl font-bold text-slate-100">{formatCurrency(portfolioData.transactions2025.sales)}</div>
+                                    </div>
+
+                                    <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-xl p-5">
+                                        <div className="text-slate-400 text-sm font-medium mb-2">Dividends Reinvested</div>
+                                        <div className="text-2xl font-bold text-slate-100">{formatCurrency(portfolioData.transactions2025.dividendsReinvested)}</div>
                                     </div>
                                 </div>
 
@@ -445,6 +474,57 @@
                                         <div className="text-center text-xs text-slate-500 mt-2">
                                             Start Value + Net Inflows + Market Gain = End Value
                                         </div>
+                                    </div>
+                                </div>
+
+                                {/* Account-by-Account Breakdown */}
+                                <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-2xl p-8">
+                                    <h2 className="text-2xl font-bold mb-6">By Account</h2>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                        {Object.entries(portfolioData.holdings2025.accountsByNumber).map(([accountNum, account2025]) => {
+                                            const accountName = portfolioData.accountNames[accountNum];
+                                            const account2024 = portfolioData.holdings2024.accountsByNumber[accountNum] || { value: 0 };
+                                            const accountChange = account2025.value - account2024.value;
+                                            const accountChangePct = account2024.value > 0 ? (accountChange / account2024.value) * 100 : 0;
+
+                                            return (
+                                                <div key={accountNum} className="bg-slate-800/50 rounded-xl p-5 border border-slate-700">
+                                                    <div className="font-semibold text-slate-200 mb-1">{accountName}</div>
+                                                    <div className="text-xs text-slate-500 mb-3">{accountNum}</div>
+                                                    
+                                                    <div className="space-y-2 text-sm">
+                                                        <div className="flex justify-between">
+                                                            <span className="text-slate-400">Holdings</span>
+                                                            <span className="text-slate-200">{account2025.holdings}</span>
+                                                        </div>
+                                                        <div className="flex justify-between">
+                                                            <span className="text-slate-400">Start '24</span>
+                                                            <span className="text-slate-200">{formatCurrency(account2024.value)}</span>
+                                                        </div>
+                                                        <div className="flex justify-between">
+                                                            <span className="text-slate-400">Net Inv '25</span>
+                                                            <span className="text-slate-200">$0.00</span>
+                                                        </div>
+                                                        <div className="flex justify-between">
+                                                            <span className="text-slate-400">Market Gain</span>
+                                                            <span className={accountChange >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                                                                {formatCurrency(accountChange)}
+                                                            </span>
+                                                        </div>
+                                                        <div className="pt-2 border-t border-slate-700/50 flex justify-between font-semibold">
+                                                            <span className="text-slate-300">End Value</span>
+                                                            <span className="text-slate-100">{formatCurrency(account2025.value)}</span>
+                                                        </div>
+                                                        <div className="flex justify-between">
+                                                            <span className="text-xs text-slate-500">ROIC</span>
+                                                            <span className={`text-xs font-semibold ${accountChangePct >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                                {formatPercent(accountChangePct)}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             </div>
