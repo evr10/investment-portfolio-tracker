@@ -48,10 +48,6 @@
             const [subTab, setSubTab] = useState('byaccount');
             const [showImport, setShowImport] = useState(false);
             const [portfolioData, setPortfolioData] = useState(null);
-            
-            const fileInput2024 = useRef(null);
-            const fileInput2025 = useRef(null);
-            const fileInputTransactions = useRef(null);
 
             useEffect(() => {
                 const saved = localStorage.getItem('portfolioData');
@@ -84,6 +80,7 @@
             const processHoldingsCSV = async (file) => {
                 const data = await parseCSV(file);
                 const accountsByNumber = {};
+                const allHoldings = [];
                 let totalValue = 0;
                 let totalCostBasis = 0;
 
@@ -93,6 +90,21 @@
 
                     const marketValue = parseFloat(row.Market_Value) || 0;
                     const costBasis = parseFloat(row.Cost_Basis) || 0;
+                    const quantity = parseFloat(row.Quantity) || 0;
+                    const price = parseFloat(row.Price) || 0;
+
+                    // Store individual holding
+                    allHoldings.push({
+                        accountNumber: accountNum,
+                        assetClass: row.Asset_Class,
+                        symbol: row.Symbol,
+                        description: row.Description,
+                        quantity,
+                        price,
+                        marketValue,
+                        costBasis,
+                        unrealizedGainLoss: parseFloat(row.Unrealized_Gain_Loss) || 0
+                    });
 
                     if (!accountsByNumber[accountNum]) {
                         accountsByNumber[accountNum] = { value: 0, costBasis: 0, holdings: 0 };
@@ -106,13 +118,14 @@
                     totalCostBasis += costBasis;
                 });
 
-                return { totalValue, totalCostBasis, accountsByNumber };
+                return { totalValue, totalCostBasis, accountsByNumber, allHoldings };
             };
 
             const processTransactionsCSV = async (file) => {
                 const data = await parseCSV(file);
                 const accountNames = {};
                 const accountTransactions = {};
+                const allTransactions = [];
                 let purchases = 0;
                 let sales = 0;
                 let dividendsReinvested = 0;
@@ -126,6 +139,32 @@
                     if (accountNum && accountName && !accountNames[accountNum]) {
                         accountNames[accountNum] = accountName;
                     }
+
+                    // Classify transaction type
+                    let type = 'Other';
+                    if (action.includes('REINVESTMENT')) {
+                        type = 'Reinvestment';
+                    } else if (action.includes('DIVIDEND')) {
+                        type = 'Dividend';
+                    } else if (action.includes('YOU BOUGHT') || (amount < 0 && !action.includes('DIVIDEND') && !action.includes('REINVESTMENT') && !action.includes('WIRE') && !action.includes('DEBIT'))) {
+                        type = 'Buy';
+                    } else if (action.includes('YOU SOLD')) {
+                        type = 'Sell';
+                    }
+
+                    // Store transaction
+                    allTransactions.push({
+                        date: row['Run Date'],
+                        account: accountName,
+                        accountNumber: accountNum,
+                        action: row.Action,
+                        symbol: row.Symbol || '',
+                        description: row.Description || '',
+                        quantity: parseFloat(row.Quantity) || 0,
+                        price: parseFloat(row.Price) || 0,
+                        amount: amount,
+                        type: type
+                    });
 
                     if (accountNum && !accountTransactions[accountNum]) {
                         accountTransactions[accountNum] = {
@@ -159,6 +198,7 @@
                 return {
                     accountNames,
                     accountTransactions,
+                    allTransactions,
                     purchases,
                     sales,
                     dividendsReinvested,
@@ -166,32 +206,59 @@
                 };
             };
 
-            const handleFileUpload = async (file, type) => {
-                if (!file) return;
+            const handleFileUpload = async (files, type) => {
+                if (!files || files.length === 0) return;
 
                 try {
-                    if (type === '2024') {
-                        const holdings2024 = await processHoldingsCSV(file);
-                        setPortfolioData(prev => ({ ...prev, holdings2024 }));
-                    } else if (type === '2025') {
-                        const holdings2025 = await processHoldingsCSV(file);
-                        setPortfolioData(prev => ({ ...prev, holdings2025 }));
-                    } else if (type === 'transactions') {
-                        const trans = await processTransactionsCSV(file);
-                        setPortfolioData(prev => ({
-                            ...prev,
-                            accountNames: trans.accountNames,
-                            accountTransactions: trans.accountTransactions,
-                            transactions2025: {
-                                purchases: trans.purchases,
-                                sales: trans.sales,
-                                dividendsReinvested: trans.dividendsReinvested,
-                                netInvested: trans.netInvested
-                            }
-                        }));
+                    for (const file of files) {
+                        if (type === '2024') {
+                            const holdings2024 = await processHoldingsCSV(file);
+                            setPortfolioData(prev => ({
+                                ...prev,
+                                holdings2024: {
+                                    ...(prev?.holdings2024 || {}),
+                                    totalValue: (prev?.holdings2024?.totalValue || 0) + holdings2024.totalValue,
+                                    totalCostBasis: (prev?.holdings2024?.totalCostBasis || 0) + holdings2024.totalCostBasis,
+                                    accountsByNumber: {
+                                        ...(prev?.holdings2024?.accountsByNumber || {}),
+                                        ...holdings2024.accountsByNumber
+                                    },
+                                    allHoldings: [...(prev?.holdings2024?.allHoldings || []), ...holdings2024.allHoldings]
+                                }
+                            }));
+                        } else if (type === '2025') {
+                            const holdings2025 = await processHoldingsCSV(file);
+                            setPortfolioData(prev => ({
+                                ...prev,
+                                holdings2025: {
+                                    ...(prev?.holdings2025 || {}),
+                                    totalValue: (prev?.holdings2025?.totalValue || 0) + holdings2025.totalValue,
+                                    totalCostBasis: (prev?.holdings2025?.totalCostBasis || 0) + holdings2025.totalCostBasis,
+                                    accountsByNumber: {
+                                        ...(prev?.holdings2025?.accountsByNumber || {}),
+                                        ...holdings2025.accountsByNumber
+                                    },
+                                    allHoldings: [...(prev?.holdings2025?.allHoldings || []), ...holdings2025.allHoldings]
+                                }
+                            }));
+                        } else if (type === 'transactions') {
+                            const trans = await processTransactionsCSV(file);
+                            setPortfolioData(prev => ({
+                                ...prev,
+                                accountNames: { ...(prev?.accountNames || {}), ...trans.accountNames },
+                                accountTransactions: { ...(prev?.accountTransactions || {}), ...trans.accountTransactions },
+                                allTransactions: [...(prev?.allTransactions || []), ...trans.allTransactions],
+                                transactions2025: {
+                                    purchases: (prev?.transactions2025?.purchases || 0) + trans.purchases,
+                                    sales: (prev?.transactions2025?.sales || 0) + trans.sales,
+                                    dividendsReinvested: (prev?.transactions2025?.dividendsReinvested || 0) + trans.dividendsReinvested,
+                                    netInvested: (prev?.transactions2025?.netInvested || 0) + trans.netInvested
+                                }
+                            }));
+                        }
                     }
                 } catch (error) {
-                    alert(`Error processing ${type} file: ${error.message}`);
+                    alert(`Error processing ${type} files: ${error.message}`);
                 }
             };
 
@@ -282,19 +349,19 @@
                                 <div className="mt-4 bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-2xl p-6 space-y-4 animate-fadeIn">
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                         <div>
-                                            <label className="block text-sm font-medium text-slate-400 mb-2">Holdings 2024 CSV</label>
-                                            <input ref={fileInput2024} type="file" accept=".csv" onChange={(e) => handleFileUpload(e.target.files[0], '2024')} className="block w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-emerald-900/20 file:text-emerald-400 hover:file:bg-emerald-900/30 file:cursor-pointer cursor-pointer" />
+                                            <label className="block text-sm font-medium text-slate-400 mb-2">Holdings 2024 CSV (Multiple Files Allowed)</label>
+                                            <input type="file" accept=".csv" multiple onChange={(e) => handleFileUpload(Array.from(e.target.files), '2024')} className="block w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-emerald-900/20 file:text-emerald-400 hover:file:bg-emerald-900/30 file:cursor-pointer cursor-pointer" />
                                         </div>
                                         <div>
-                                            <label className="block text-sm font-medium text-slate-400 mb-2">Holdings 2025 CSV</label>
-                                            <input ref={fileInput2025} type="file" accept=".csv" onChange={(e) => handleFileUpload(e.target.files[0], '2025')} className="block w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-emerald-900/20 file:text-emerald-400 hover:file:bg-emerald-900/30 file:cursor-pointer cursor-pointer" />
+                                            <label className="block text-sm font-medium text-slate-400 mb-2">Holdings 2025 CSV (Multiple Files Allowed)</label>
+                                            <input type="file" accept=".csv" multiple onChange={(e) => handleFileUpload(Array.from(e.target.files), '2025')} className="block w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-emerald-900/20 file:text-emerald-400 hover:file:bg-emerald-900/30 file:cursor-pointer cursor-pointer" />
                                         </div>
                                         <div>
-                                            <label className="block text-sm font-medium text-slate-400 mb-2">Transactions 2025 CSV</label>
-                                            <input ref={fileInputTransactions} type="file" accept=".csv" onChange={(e) => handleFileUpload(e.target.files[0], 'transactions')} className="block w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-emerald-900/20 file:text-emerald-400 hover:file:bg-emerald-900/30 file:cursor-pointer cursor-pointer" />
+                                            <label className="block text-sm font-medium text-slate-400 mb-2">Transactions 2025 CSV (Multiple Files Allowed)</label>
+                                            <input type="file" accept=".csv" multiple onChange={(e) => handleFileUpload(Array.from(e.target.files), 'transactions')} className="block w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-emerald-900/20 file:text-emerald-400 hover:file:bg-emerald-900/30 file:cursor-pointer cursor-pointer" />
                                         </div>
                                     </div>
-                                    <p className="text-xs text-slate-500">Upload your CSV files to analyze your portfolio. Data is stored locally in your browser.</p>
+                                    <p className="text-xs text-slate-500">Upload your CSV files to analyze your portfolio. You can select multiple files at once. Data is stored locally in your browser.</p>
                                 </div>
                             )}
                         </div>
@@ -480,46 +547,93 @@
 
                                         {subTab === 'allholdings' && (
                                             <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-2xl p-8 animate-fadeIn">
-                                                <h2 className="text-xl font-bold mb-4">All Holdings Summary</h2>
-                                                <p className="text-slate-400">This view would show all individual holdings across all accounts.</p>
+                                                <h2 className="text-xl font-bold mb-6">All Holdings ({portfolioData?.holdings2025?.allHoldings?.length || 0} positions)</h2>
+                                                <div className="overflow-x-auto">
+                                                    <table className="w-full text-sm">
+                                                        <thead className="border-b border-slate-700">
+                                                            <tr className="text-slate-400">
+                                                                <th className="text-left py-3 px-2">Account</th>
+                                                                <th className="text-left py-3 px-2">Symbol</th>
+                                                                <th className="text-left py-3 px-2">Description</th>
+                                                                <th className="text-left py-3 px-2">Type</th>
+                                                                <th className="text-right py-3 px-2">Quantity</th>
+                                                                <th className="text-right py-3 px-2">Price</th>
+                                                                <th className="text-right py-3 px-2">Market Value</th>
+                                                                <th className="text-right py-3 px-2">Cost Basis</th>
+                                                                <th className="text-right py-3 px-2">Gain/Loss</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {portfolioData?.holdings2025?.allHoldings?.map((holding, idx) => {
+                                                                const accountName = portfolioData.accountNames?.[holding.accountNumber] || holding.accountNumber;
+                                                                return (
+                                                                    <tr key={idx} className="border-b border-slate-800/50 hover:bg-slate-800/30">
+                                                                        <td className="py-3 px-2 text-slate-300">{accountName}</td>
+                                                                        <td className="py-3 px-2 font-semibold text-slate-200">{holding.symbol}</td>
+                                                                        <td className="py-3 px-2 text-slate-400 text-xs">{holding.description}</td>
+                                                                        <td className="py-3 px-2 text-slate-400 text-xs">{holding.assetClass}</td>
+                                                                        <td className="py-3 px-2 text-right text-slate-300">{holding.quantity.toFixed(3)}</td>
+                                                                        <td className="py-3 px-2 text-right text-slate-300">{formatCurrency(holding.price)}</td>
+                                                                        <td className="py-3 px-2 text-right font-semibold text-slate-200">{formatCurrency(holding.marketValue)}</td>
+                                                                        <td className="py-3 px-2 text-right text-slate-400">{formatCurrency(holding.costBasis)}</td>
+                                                                        <td className={`py-3 px-2 text-right font-semibold ${holding.unrealizedGainLoss >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                                            {formatCurrency(holding.unrealizedGainLoss)}
+                                                                        </td>
+                                                                    </tr>
+                                                                );
+                                                            })}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
                                             </div>
                                         )}
 
                                         {subTab === 'transactions' && (
-                                            <div className="space-y-6 animate-fadeIn">
-                                                <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-2xl p-8">
-                                                    <h2 className="text-xl font-bold mb-6">2025 Transaction Breakdown</h2>
-                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                                        {portfolioData?.accountTransactions && Object.entries(portfolioData.accountTransactions).map(([accountNum, trans]) => {
-                                                            const accountName = portfolioData.accountNames?.[accountNum] || accountNum;
-                                                            
-                                                            return (
-                                                                <div key={accountNum} className="bg-slate-800/50 rounded-xl p-5 border border-slate-700">
-                                                                    <div className="font-semibold text-lg text-slate-200 mb-4">{accountName}</div>
-                                                                    <div className="space-y-3">
-                                                                        <div className="flex justify-between">
-                                                                            <span className="text-slate-400">Purchases:</span>
-                                                                            <span className="font-semibold text-slate-200">{formatCurrency(trans.purchases)}</span>
-                                                                        </div>
-                                                                        <div className="flex justify-between">
-                                                                            <span className="text-slate-400">Sales:</span>
-                                                                            <span className="font-semibold text-slate-200">{formatCurrency(trans.sales)}</span>
-                                                                        </div>
-                                                                        <div className="flex justify-between">
-                                                                            <span className="text-slate-400">Dividends Reinvested:</span>
-                                                                            <span className="font-semibold text-slate-200">{formatCurrency(trans.dividendsReinvested)}</span>
-                                                                        </div>
-                                                                        <div className="pt-3 border-t border-slate-700 flex justify-between">
-                                                                            <span className="text-slate-300 font-semibold">Net Invested:</span>
-                                                                            <span className={`font-bold ${trans.netInvested >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                                                                {formatCurrency(trans.netInvested)}
+                                            <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-2xl p-8 animate-fadeIn">
+                                                <h2 className="text-xl font-bold mb-6">All Transactions ({portfolioData?.allTransactions?.length || 0} transactions)</h2>
+                                                <div className="overflow-x-auto">
+                                                    <table className="w-full text-sm">
+                                                        <thead className="border-b border-slate-700">
+                                                            <tr className="text-slate-400">
+                                                                <th className="text-left py-3 px-2">Date</th>
+                                                                <th className="text-left py-3 px-2">Account</th>
+                                                                <th className="text-left py-3 px-2">Type</th>
+                                                                <th className="text-left py-3 px-2">Symbol</th>
+                                                                <th className="text-left py-3 px-2">Action</th>
+                                                                <th className="text-right py-3 px-2">Quantity</th>
+                                                                <th className="text-right py-3 px-2">Price</th>
+                                                                <th className="text-right py-3 px-2">Amount</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {portfolioData?.allTransactions?.map((trans, idx) => {
+                                                                let typeColor = 'bg-slate-700 text-slate-300';
+                                                                if (trans.type === 'Buy') typeColor = 'bg-blue-900/50 text-blue-400';
+                                                                else if (trans.type === 'Sell') typeColor = 'bg-red-900/50 text-red-400';
+                                                                else if (trans.type === 'Dividend') typeColor = 'bg-green-900/50 text-green-400';
+                                                                else if (trans.type === 'Reinvestment') typeColor = 'bg-purple-900/50 text-purple-400';
+
+                                                                return (
+                                                                    <tr key={idx} className="border-b border-slate-800/50 hover:bg-slate-800/30">
+                                                                        <td className="py-3 px-2 text-slate-400 text-xs">{trans.date}</td>
+                                                                        <td className="py-3 px-2 text-slate-300 text-xs">{trans.account}</td>
+                                                                        <td className="py-3 px-2">
+                                                                            <span className={`px-2 py-1 rounded text-xs font-semibold ${typeColor}`}>
+                                                                                {trans.type}
                                                                             </span>
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
+                                                                        </td>
+                                                                        <td className="py-3 px-2 font-semibold text-slate-200">{trans.symbol}</td>
+                                                                        <td className="py-3 px-2 text-slate-400 text-xs">{trans.action}</td>
+                                                                        <td className="py-3 px-2 text-right text-slate-300">{trans.quantity > 0 ? trans.quantity.toFixed(3) : '-'}</td>
+                                                                        <td className="py-3 px-2 text-right text-slate-300">{trans.price > 0 ? formatCurrency(trans.price) : '-'}</td>
+                                                                        <td className={`py-3 px-2 text-right font-semibold ${trans.amount >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                                            {formatCurrency(trans.amount)}
+                                                                        </td>
+                                                                    </tr>
+                                                                );
+                                                            })}
+                                                        </tbody>
+                                                    </table>
                                                 </div>
                                             </div>
                                         )}
