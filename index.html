@@ -7,527 +7,529 @@
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.263.1/lucide.min.css">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap');
-        
-        * {
-            font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-        }
-        
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .animate-fadeIn {
-            animation: fadeIn 0.5s ease-out;
-        }
-
-        /* Custom scrollbar */
-        ::-webkit-scrollbar {
-            width: 8px;
-        }
-
-        ::-webkit-scrollbar-track {
-            background: #0f172a;
-        }
-
-        ::-webkit-scrollbar-thumb {
-            background: #334155;
-            border-radius: 4px;
-        }
-
-        ::-webkit-scrollbar-thumb:hover {
-            background: #475569;
-        }
+        * { font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fadeIn { animation: fadeIn 0.5s ease-out; }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState } = React;
+        const { useState, useEffect, useRef } = React;
 
-        /*
-          CSV DATA INTEGRATION GUIDE:
-          
-          To load your actual CSV files, replace the portfolioData object below.
-          
-          1. HOLDINGS FILES (holdings_2024.csv, holdings_2025.csv):
-             - Parse CSV with columns: Account_Number, Asset_Class, Symbol, Description, Quantity, Price, Market_Value, Cost_Basis, Unrealized_Gain_Loss
-             - Normalize account numbers: Remove hyphens (X90-845768 → X90845768)
-             - Group by normalized Account_Number and sum Market_Value and Cost_Basis
-             - Count unique holdings per account
-          
-          2. TRANSACTIONS FILE (transactions_2025.csv):
-             - Parse CSV with columns: Account, Account Number, Action, Symbol, Amount, etc.
-             - Normalize Account Number: Remove hyphens and spaces
-             - Create account mapping: normalized number → friendly Account name
-             - Sum transactions by Action type:
-               * Purchases: Action contains "YOU BOUGHT" or look for negative amounts with buy-related actions
-               * Sales: Action contains "YOU SOLD" or positive amounts with sell-related actions
-               * Dividends Reinvested: Action = "REINVESTMENT"
-             - Calculate Net Invested = Purchases + Dividends Reinvested - Sales
-          
-          3. ACCOUNT CONSOLIDATION:
-             - Always use NORMALIZED account numbers as keys (no hyphens/spaces)
-             - Display friendly names from transactions file "Account" column
-             - Match across files using normalized numbers
-        */
-
-        // Helper function to normalize account numbers (remove hyphens and spaces)
         const normalizeAccountNumber = (accountNum) => {
             if (!accountNum) return '';
             return accountNum.toString().replace(/[-\s]/g, '');
         };
 
-        // Sample data structure - replace with your actual CSV data
-        const portfolioData = {
-            // Account mapping: normalized number -> friendly name
-            accountNames: {
-                '235972478': 'Health Savings Account',
-                'X90845768': 'Primary Portfolio',
-                'Z21306611': 'Individual - TOD',
-                'Z08638986': 'Joint WROS - TOD'
-            },
-            
-            holdings2024: {
-                totalValue: 617945.22,
-                // Key by normalized account number
-                accountsByNumber: {
-                    '235972478': { value: 0, holdings: 0 },
-                    'X90845768': { value: 393400, holdings: 20 },
-                    'Z21306611': { value: 179200, holdings: 13 },
-                    'Z08638986': { value: 45400, holdings: 2 }
-                }
-            },
-            
-            holdings2025: {
-                totalValue: 836872.98,
-                totalCostBasis: 648184.39,
-                // Key by normalized account number
-                accountsByNumber: {
-                    '235972478': { value: 0, holdings: 0, costBasis: 0 },
-                    'X90845768': { value: 575874.48, holdings: 20, costBasis: 393400 },
-                    'Z21306611': { value: 208560.27, holdings: 13, costBasis: 179200 },
-                    'Z08638986': { value: 52438.23, holdings: 2, costBasis: 45400 }
-                }
-            },
-            
-            transactions2025: {
-                purchases: 23761.12,
-                sales: 2389.68,
-                dividendsReinvested: 8787.65,
-                netInvested: 38239.17 // Buys + Divs - Sells
-            }
-        };
-
-        // Lucide Icons as inline SVG components
-        const TrendingUp = () => (
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
-                <polyline points="17 6 23 6 23 12"></polyline>
-            </svg>
-        );
-
-        const Calendar = () => (
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-                <line x1="16" y1="2" x2="16" y2="6"></line>
-                <line x1="8" y1="2" x2="8" y2="6"></line>
-                <line x1="3" y1="10" x2="21" y2="10"></line>
-            </svg>
-        );
-
-        const DollarSign = () => (
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="12" y1="1" x2="12" y2="23"></line>
-                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
-            </svg>
-        );
-
-        const BarChart3 = () => (
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 3v18h18"></path>
-                <path d="M18 17V9"></path>
-                <path d="M13 17V5"></path>
-                <path d="M8 17v-3"></path>
-            </svg>
-        );
-
-        const PieChart = () => (
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path>
-                <path d="M22 12A10 10 0 0 0 12 2v10z"></path>
-            </svg>
-        );
-
-        const ArrowUpRight = () => (
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="7" y1="17" x2="17" y2="7"></line>
-                <polyline points="7 7 17 7 17 17"></polyline>
-            </svg>
-        );
-
-        const ArrowDownRight = () => (
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="7" y1="7" x2="17" y2="17"></line>
-                <polyline points="17 7 17 17 7 17"></polyline>
-            </svg>
-        );
+        // Icons
+        const TrendingUp = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>;
+        const Calendar = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>;
+        const Upload = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>;
+        const Download = () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>;
+        const Trash = () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>;
+        const ChevronDown = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"></polyline></svg>;
+        const DollarSign = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>;
+        const BarChart3 = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 3v18h18"></path><path d="M18 17V9"></path><path d="M13 17V5"></path><path d="M8 17v-3"></path></svg>;
+        const PieChart = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path><path d="M22 12A10 10 0 0 0 12 2v10z"></path></svg>;
+        const ArrowUpRight = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="7" y1="17" x2="17" y2="7"></line><polyline points="7 7 17 7 17 17"></polyline></svg>;
 
         const PortfolioDashboard = () => {
             const [activeTab, setActiveTab] = useState('alltime');
+            const [subTab, setSubTab] = useState('byaccount'); // byaccount, allholdings, transactions
+            const [showImport, setShowImport] = useState(false);
+            const [portfolioData, setPortfolioData] = useState(null);
+            
+            const fileInput2024 = useRef(null);
+            const fileInput2025 = useRef(null);
+            const fileInputTransactions = useRef(null);
 
-            // All-Time Performance Calculations
-            const currentValue = portfolioData.holdings2025.totalValue;
-            const costBasis = portfolioData.holdings2025.totalCostBasis;
-            const unrealizedGain = currentValue - costBasis;
-            const unrealizedGainPct = (unrealizedGain / costBasis) * 100;
+            useEffect(() => {
+                const saved = localStorage.getItem('portfolioData');
+                if (saved) setPortfolioData(JSON.parse(saved));
+            }, []);
 
-            // 2025 Performance Calculations
-            const startValue = portfolioData.holdings2024.totalValue;
-            const endValue = portfolioData.holdings2025.totalValue;
-            const netInflows = portfolioData.transactions2025.netInvested;
-            const marketGain = endValue - (startValue + netInflows);
-            const marketGainPct = (marketGain / (startValue + netInflows)) * 100;
-            const totalChange = endValue - startValue;
-            const totalChangePct = (totalChange / startValue) * 100;
+            useEffect(() => {
+                if (portfolioData) localStorage.setItem('portfolioData', JSON.stringify(portfolioData));
+            }, [portfolioData]);
+
+            const parseCSV = (file) => {
+                return new Promise((resolve, reject) => {
+                    Papa.parse(file, {
+                        header: true,
+                        skipEmptyLines: true,
+                        complete: (results) => resolve(results.data),
+                        error: (error) => reject(error)
+                    });
+                });
+            };
+
+            const processHoldingsCSV = async (file) => {
+                const data = await parseCSV(file);
+                const accountsByNumber = {};
+                let totalValue = 0;
+                let totalCostBasis = 0;
+
+                data.forEach(row => {
+                    const accountNum = normalizeAccountNumber(row.Account_Number);
+                    if (!accountNum) return;
+
+                    const marketValue = parseFloat(row.Market_Value) || 0;
+                    const costBasis = parseFloat(row.Cost_Basis) || 0;
+
+                    if (!accountsByNumber[accountNum]) {
+                        accountsByNumber[accountNum] = { value: 0, costBasis: 0, holdings: 0 };
+                    }
+
+                    accountsByNumber[accountNum].value += marketValue;
+                    accountsByNumber[accountNum].costBasis += costBasis;
+                    accountsByNumber[accountNum].holdings += 1;
+
+                    totalValue += marketValue;
+                    totalCostBasis += costBasis;
+                });
+
+                return { totalValue, totalCostBasis, accountsByNumber };
+            };
+
+            const processTransactionsCSV = async (file) => {
+                const data = await parseCSV(file);
+                const accountNames = {};
+                const accountTransactions = {};
+                let purchases = 0;
+                let sales = 0;
+                let dividendsReinvested = 0;
+
+                data.forEach(row => {
+                    const accountNum = normalizeAccountNumber(row['Account Number']);
+                    const accountName = row.Account;
+                    const action = (row.Action || '').toUpperCase();
+                    const amount = parseFloat(row.Amount) || 0;
+
+                    if (accountNum && accountName && !accountNames[accountNum]) {
+                        accountNames[accountNum] = accountName;
+                    }
+
+                    // Initialize account transactions
+                    if (accountNum && !accountTransactions[accountNum]) {
+                        accountTransactions[accountNum] = {
+                            purchases: 0,
+                            sales: 0,
+                            dividendsReinvested: 0,
+                            netInvested: 0
+                        };
+                    }
+
+                    if (action.includes('REINVESTMENT')) {
+                        const reinvAmount = Math.abs(amount);
+                        dividendsReinvested += reinvAmount;
+                        if (accountNum) accountTransactions[accountNum].dividendsReinvested += reinvAmount;
+                    } else if (action.includes('YOU BOUGHT') || (amount < 0 && !action.includes('DIVIDEND') && !action.includes('REINVESTMENT'))) {
+                        const purchaseAmount = Math.abs(amount);
+                        purchases += purchaseAmount;
+                        if (accountNum) accountTransactions[accountNum].purchases += purchaseAmount;
+                    } else if (action.includes('YOU SOLD')) {
+                        const saleAmount = Math.abs(amount);
+                        sales += saleAmount;
+                        if (accountNum) accountTransactions[accountNum].sales += saleAmount;
+                    }
+                });
+
+                // Calculate net invested per account
+                Object.keys(accountTransactions).forEach(accountNum => {
+                    const acct = accountTransactions[accountNum];
+                    acct.netInvested = acct.purchases + acct.dividendsReinvested - acct.sales;
+                });
+
+                return {
+                    accountNames,
+                    accountTransactions,
+                    purchases,
+                    sales,
+                    dividendsReinvested,
+                    netInvested: purchases + dividendsReinvested - sales
+                };
+            };
+
+            const handleFileUpload = async (file, type) => {
+                if (!file) return;
+
+                try {
+                    if (type === '2024') {
+                        const holdings2024 = await processHoldingsCSV(file);
+                        setPortfolioData(prev => ({ ...prev, holdings2024 }));
+                    } else if (type === '2025') {
+                        const holdings2025 = await processHoldingsCSV(file);
+                        setPortfolioData(prev => ({ ...prev, holdings2025 }));
+                    } else if (type === 'transactions') {
+                        const trans = await processTransactionsCSV(file);
+                        setPortfolioData(prev => ({
+                            ...prev,
+                            accountNames: trans.accountNames,
+                            accountTransactions: trans.accountTransactions,
+                            transactions2025: {
+                                purchases: trans.purchases,
+                                sales: trans.sales,
+                                dividendsReinvested: trans.dividendsReinvested,
+                                netInvested: trans.netInvested
+                            }
+                        }));
+                    }
+                } catch (error) {
+                    alert(`Error processing ${type} file: ${error.message}`);
+                }
+            };
+
+            const handleExport = () => {
+                const dataStr = JSON.stringify(portfolioData, null, 2);
+                const dataBlob = new Blob([dataStr], { type: 'application/json' });
+                const url = URL.createObjectURL(dataBlob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `portfolio-data-${new Date().toISOString().split('T')[0]}.json`;
+                link.click();
+                URL.revokeObjectURL(url);
+            };
+
+            const handleClearData = () => {
+                if (confirm('Are you sure you want to clear all data? This cannot be undone.')) {
+                    localStorage.removeItem('portfolioData');
+                    setPortfolioData(null);
+                }
+            };
 
             const formatCurrency = (value) => {
-                return new Intl.NumberFormat('en-US', {
-                    style: 'currency',
-                    currency: 'USD',
-                    minimumFractionDigits: 2
-                }).format(value);
+                return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(value);
             };
 
             const formatPercent = (value) => {
                 return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
             };
 
+            const formatNumber = (value) => {
+                if (value >= 1000) return (value / 1000).toFixed(1) + 'K';
+                return value.toFixed(0);
+            };
+
+            const currentValue = portfolioData?.holdings2025?.totalValue || 0;
+            const costBasis = portfolioData?.holdings2025?.totalCostBasis || 0;
+            const unrealizedGain = currentValue - costBasis;
+            const unrealizedGainPct = costBasis > 0 ? (unrealizedGain / costBasis) * 100 : 0;
+
+            const startValue = portfolioData?.holdings2024?.totalValue || 0;
+            const endValue = portfolioData?.holdings2025?.totalValue || 0;
+            const netInflows = portfolioData?.transactions2025?.netInvested || 0;
+            const marketGain = endValue - (startValue + netInflows);
+            const marketGainPct = (startValue + netInflows) > 0 ? (marketGain / (startValue + netInflows)) * 100 : 0;
+            const totalChange = endValue - startValue;
+            const totalChangePct = startValue > 0 ? (totalChange / startValue) * 100 : 0;
+
+            const hasData = portfolioData && portfolioData.holdings2025;
+
             return (
-                <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100 p-8">
-                    <div className="max-w-7xl mx-auto">
-                        {/* Header */}
-                        <div className="mb-12">
-                            <h1 className="text-5xl font-bold mb-3 bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
-                                Portfolio Analytics
-                            </h1>
-                            <p className="text-slate-400 text-lg">Track your wealth journey with precision</p>
+                <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100">
+                    {/* Header */}
+                    <div className="border-b border-slate-800 bg-slate-950/50 backdrop-blur-sm sticky top-0 z-50">
+                        <div className="max-w-7xl mx-auto px-8 py-4 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-cyan-400 rounded-lg flex items-center justify-center">
+                                    <span className="text-slate-950 font-bold text-xl">₿</span>
+                                </div>
+                                <h1 className="text-2xl font-bold">Portfolio Tracker</h1>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <span className="text-xs text-emerald-400 bg-emerald-400/10 px-3 py-1 rounded-full border border-emerald-400/30">
+                                    🔒 LOCAL STORAGE ONLY
+                                </span>
+                                {hasData && (
+                                    <>
+                                        <button onClick={handleExport} className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition-all border border-slate-700">
+                                            <Download />Export
+                                        </button>
+                                        <button onClick={handleClearData} className="flex items-center gap-2 px-4 py-2 bg-red-900/20 hover:bg-red-900/30 text-red-400 rounded-lg transition-all border border-red-800/50">
+                                            <Trash />Clear Data
+                                        </button>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="max-w-7xl mx-auto p-8">
+                        {/* Import Section */}
+                        <div className="mb-8">
+                            <button onClick={() => setShowImport(!showImport)} className="w-full bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-2xl p-6 hover:border-slate-700 transition-all flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <Upload /><span className="font-semibold text-lg">Import Data</span>
+                                </div>
+                                <div className={`transform transition-transform ${showImport ? 'rotate-180' : ''}`}><ChevronDown /></div>
+                            </button>
+
+                            {showImport && (
+                                <div className="mt-4 bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-2xl p-6 space-y-4 animate-fadeIn">
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-400 mb-2">Holdings 2024 CSV</label>
+                                            <input ref={fileInput2024} type="file" accept=".csv" onChange={(e) => handleFileUpload(e.target.files[0], '2024')} className="block w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-emerald-900/20 file:text-emerald-400 hover:file:bg-emerald-900/30 file:cursor-pointer cursor-pointer" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-400 mb-2">Holdings 2025 CSV</label>
+                                            <input ref={fileInput2025} type="file" accept=".csv" onChange={(e) => handleFileUpload(e.target.files[0], '2025')} className="block w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-emerald-900/20 file:text-emerald-400 hover:file:bg-emerald-900/30 file:cursor-pointer cursor-pointer" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-400 mb-2">Transactions 2025 CSV</label>
+                                            <input ref={fileInputTransactions} type="file" accept=".csv" onChange={(e) => handleFileUpload(e.target.files[0], 'transactions')} className="block w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-emerald-900/20 file:text-emerald-400 hover:file:bg-emerald-900/30 file:cursor-pointer cursor-pointer" />
+                                        </div>
+                                    </div>
+                                    <p className="text-xs text-slate-500">Upload your CSV files to analyze your portfolio. Data is stored locally in your browser.</p>
+                                </div>
+                            )}
                         </div>
 
-                        {/* Tab Navigation */}
-                        <div className="flex gap-4 mb-8 border-b border-slate-800 pb-1">
-                            <button
-                                onClick={() => setActiveTab('alltime')}
-                                className={`px-6 py-3 font-semibold text-lg transition-all duration-300 relative ${
-                                    activeTab === 'alltime'
-                                        ? 'text-emerald-400'
-                                        : 'text-slate-500 hover:text-slate-300'
-                                }`}
-                            >
-                                <span className="inline-flex items-center gap-2">
-                                    <TrendingUp />
-                                    All-Time Performance
-                                </span>
-                                {activeTab === 'alltime' && (
-                                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-400 to-cyan-400 rounded-full" />
-                                )}
-                            </button>
-                            <button
-                                onClick={() => setActiveTab('2025')}
-                                className={`px-6 py-3 font-semibold text-lg transition-all duration-300 relative ${
-                                    activeTab === '2025'
-                                        ? 'text-cyan-400'
-                                        : 'text-slate-500 hover:text-slate-300'
-                                }`}
-                            >
-                                <span className="inline-flex items-center gap-2">
-                                    <Calendar />
-                                    2025 Year-in-Review
-                                </span>
-                                {activeTab === '2025' && (
-                                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-400 to-blue-400 rounded-full" />
-                                )}
-                            </button>
-                        </div>
-
-                        {/* Tab Content */}
-                        {activeTab === 'alltime' && (
-                            <div className="space-y-6 animate-fadeIn">
-                                {/* Key Metrics */}
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                    <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-2xl p-6 hover:border-emerald-500/50 transition-all duration-300">
-                                        <div className="flex items-center justify-between mb-2">
-                                            <span className="text-slate-400 text-sm font-medium">Current Market Value</span>
-                                            <DollarSign />
-                                        </div>
-                                        <div className="text-3xl font-bold text-emerald-400">{formatCurrency(currentValue)}</div>
-                                    </div>
-
-                                    <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-2xl p-6 hover:border-blue-500/50 transition-all duration-300">
-                                        <div className="flex items-center justify-between mb-2">
-                                            <span className="text-slate-400 text-sm font-medium">Total Cost Basis</span>
-                                            <BarChart3 />
-                                        </div>
-                                        <div className="text-3xl font-bold text-blue-400">{formatCurrency(costBasis)}</div>
-                                    </div>
-
-                                    <div className="bg-gradient-to-br from-emerald-900/30 to-cyan-900/30 backdrop-blur-sm border border-emerald-500/50 rounded-2xl p-6 shadow-lg shadow-emerald-500/20">
-                                        <div className="flex items-center justify-between mb-2">
-                                            <span className="text-slate-300 text-sm font-medium">Lifetime Unrealized Gain</span>
-                                            <ArrowUpRight />
-                                        </div>
-                                        <div className="text-3xl font-bold text-emerald-400">{formatCurrency(unrealizedGain)}</div>
-                                        <div className="text-sm text-emerald-400 mt-2 font-semibold">{formatPercent(unrealizedGainPct)}</div>
-                                    </div>
+                        {!hasData ? (
+                            <div className="text-center py-20">
+                                <div className="text-6xl mb-4">📊</div>
+                                <h2 className="text-2xl font-bold mb-2 text-slate-300">No Data Yet</h2>
+                                <p className="text-slate-500">Upload your CSV files to get started</p>
+                            </div>
+                        ) : (
+                            <>
+                                {/* Main Tabs */}
+                                <div className="flex gap-4 mb-8 border-b border-slate-800 pb-1">
+                                    <button onClick={() => setActiveTab('alltime')} className={`px-6 py-3 font-semibold text-lg transition-all duration-300 relative ${activeTab === 'alltime' ? 'text-emerald-400' : 'text-slate-500 hover:text-slate-300'}`}>
+                                        <span className="inline-flex items-center gap-2"><TrendingUp />All-Time Performance</span>
+                                        {activeTab === 'alltime' && <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-400 to-cyan-400 rounded-full" />}
+                                    </button>
+                                    <button onClick={() => setActiveTab('2025')} className={`px-6 py-3 font-semibold text-lg transition-all duration-300 relative ${activeTab === '2025' ? 'text-cyan-400' : 'text-slate-500 hover:text-slate-300'}`}>
+                                        <span className="inline-flex items-center gap-2"><Calendar />2025 Year-in-Review</span>
+                                        {activeTab === '2025' && <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-400 to-blue-400 rounded-full" />}
+                                    </button>
                                 </div>
 
-                                {/* Holdings Breakdown */}
-                                <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-2xl p-8">
-                                    <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
-                                        <PieChart />
-                                        Holdings Breakdown
-                                    </h2>
-                                    <div className="space-y-4">
-                                        {Object.entries(portfolioData.holdings2025.accountsByNumber).map(([accountNum, account]) => {
-                                            const accountName = portfolioData.accountNames[accountNum];
-                                            const accountGain = account.value - account.costBasis;
-                                            const accountGainPct = account.costBasis > 0 ? (accountGain / account.costBasis) * 100 : 0;
-                                            const percentage = (account.value / currentValue) * 100;
+                                {/* All-Time Tab */}
+                                {activeTab === 'alltime' && (
+                                    <div className="space-y-6 animate-fadeIn">
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                            <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-2xl p-6 hover:border-emerald-500/50 transition-all duration-300">
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <span className="text-slate-400 text-sm font-medium">Current Market Value</span><DollarSign />
+                                                </div>
+                                                <div className="text-3xl font-bold text-emerald-400">{formatCurrency(currentValue)}</div>
+                                            </div>
+                                            <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-2xl p-6 hover:border-blue-500/50 transition-all duration-300">
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <span className="text-slate-400 text-sm font-medium">Total Cost Basis</span><BarChart3 />
+                                                </div>
+                                                <div className="text-3xl font-bold text-blue-400">{formatCurrency(costBasis)}</div>
+                                            </div>
+                                            <div className="bg-gradient-to-br from-emerald-900/30 to-cyan-900/30 backdrop-blur-sm border border-emerald-500/50 rounded-2xl p-6 shadow-lg shadow-emerald-500/20">
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <span className="text-slate-300 text-sm font-medium">Lifetime Unrealized Gain</span><ArrowUpRight />
+                                                </div>
+                                                <div className="text-3xl font-bold text-emerald-400">{formatCurrency(unrealizedGain)}</div>
+                                                <div className="text-sm text-emerald-400 mt-2 font-semibold">{formatPercent(unrealizedGainPct)}</div>
+                                            </div>
+                                        </div>
 
-                                            // Skip zero-value accounts
-                                            if (account.value === 0) return null;
+                                        <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-2xl p-8">
+                                            <h2 className="text-2xl font-bold mb-6 flex items-center gap-3"><PieChart />Holdings Breakdown</h2>
+                                            <div className="space-y-4">
+                                                {Object.entries(portfolioData.holdings2025.accountsByNumber).map(([accountNum, account]) => {
+                                                    const accountName = portfolioData.accountNames?.[accountNum] || accountNum;
+                                                    const accountGain = account.value - account.costBasis;
+                                                    const accountGainPct = account.costBasis > 0 ? (accountGain / account.costBasis) * 100 : 0;
+                                                    const percentage = currentValue > 0 ? (account.value / currentValue) * 100 : 0;
+                                                    if (account.value === 0) return null;
 
-                                            return (
-                                                <div key={accountNum} className="bg-slate-800/50 rounded-xl p-5 border border-slate-700 hover:border-slate-600 transition-all">
-                                                    <div className="flex justify-between items-start mb-3">
-                                                        <div>
-                                                            <h3 className="font-semibold text-lg text-slate-200">{accountName}</h3>
-                                                            <p className="text-sm text-slate-500">{account.holdings} holdings · {accountNum}</p>
+                                                    return (
+                                                        <div key={accountNum} className="bg-slate-800/50 rounded-xl p-5 border border-slate-700 hover:border-slate-600 transition-all">
+                                                            <div className="flex justify-between items-start mb-3">
+                                                                <div>
+                                                                    <h3 className="font-semibold text-lg text-slate-200">{accountName}</h3>
+                                                                    <p className="text-sm text-slate-500">{account.holdings} holdings · {accountNum}</p>
+                                                                </div>
+                                                                <div className="text-right">
+                                                                    <div className="text-xl font-bold text-slate-100">{formatCurrency(account.value)}</div>
+                                                                    <div className={`text-sm font-semibold ${accountGain >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                                        {formatCurrency(accountGain)} ({formatPercent(accountGainPct)})
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <div className="relative h-2 bg-slate-700/50 rounded-full overflow-hidden">
+                                                                <div className="absolute h-full bg-gradient-to-r from-emerald-400 to-cyan-400 rounded-full transition-all duration-500" style={{ width: `${percentage}%` }} />
+                                                            </div>
+                                                            <div className="text-xs text-slate-500 mt-2">{percentage.toFixed(1)}% of portfolio</div>
                                                         </div>
-                                                        <div className="text-right">
-                                                            <div className="text-xl font-bold text-slate-100">{formatCurrency(account.value)}</div>
-                                                            <div className={`text-sm font-semibold ${accountGain >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                                                {formatCurrency(accountGain)} ({formatPercent(accountGainPct)})
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* 2025 Tab */}
+                                {activeTab === '2025' && (
+                                    <div className="space-y-6 animate-fadeIn">
+                                        {/* Top Metrics */}
+                                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+                                            <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-xl p-4">
+                                                <div className="text-slate-400 text-xs font-medium mb-1">TOTAL PORTFOLIO VALUE</div>
+                                                <div className="text-xl font-bold text-slate-200">{formatCurrency(endValue)}</div>
+                                                <div className="text-xs text-emerald-400 mt-1">▲ {formatPercent(totalChangePct)} vs 2024</div>
+                                            </div>
+                                            <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-xl p-4">
+                                                <div className="text-slate-400 text-xs font-medium mb-1">2024 STARTING VALUE</div>
+                                                <div className="text-xl font-bold text-slate-200">{formatCurrency(startValue)}</div>
+                                            </div>
+                                            <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-xl p-4">
+                                                <div className="text-slate-400 text-xs font-medium mb-1">NET INVESTED '25</div>
+                                                <div className="text-xl font-bold text-slate-200">{formatCurrency(netInflows)}</div>
+                                                <div className="text-xs text-slate-500">Buys + Reinv - Sells</div>
+                                            </div>
+                                            <div className="bg-gradient-to-br from-emerald-900/30 to-cyan-900/30 backdrop-blur-sm border border-emerald-500/50 rounded-xl p-4 shadow-lg shadow-emerald-500/20">
+                                                <div className="text-slate-300 text-xs font-medium mb-1">TRUE MARKET GAIN</div>
+                                                <div className="text-xl font-bold text-emerald-400">{formatCurrency(marketGain)}</div>
+                                                <div className="text-xs text-emerald-400 font-semibold">ROIC: {formatPercent(marketGainPct)}</div>
+                                            </div>
+                                            <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-xl p-4">
+                                                <div className="text-slate-400 text-xs font-medium mb-1">2025 PURCHASES</div>
+                                                <div className="text-xl font-bold text-slate-200">{formatCurrency(portfolioData.transactions2025?.purchases || 0)}</div>
+                                            </div>
+                                            <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-xl p-4">
+                                                <div className="text-slate-400 text-xs font-medium mb-1">2025 SALES</div>
+                                                <div className="text-xl font-bold text-slate-200">{formatCurrency(portfolioData.transactions2025?.sales || 0)}</div>
+                                            </div>
+                                            <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-xl p-4">
+                                                <div className="text-slate-400 text-xs font-medium mb-1">DIVIDENDS REINVESTED</div>
+                                                <div className="text-xl font-bold text-slate-200">{formatCurrency(portfolioData.transactions2025?.dividendsReinvested || 0)}</div>
+                                            </div>
+                                        </div>
+
+                                        {/* Sub-tabs */}
+                                        <div className="flex gap-2 bg-slate-900/50 p-2 rounded-xl border border-slate-800">
+                                            <button onClick={() => setSubTab('byaccount')} className={`px-4 py-2 rounded-lg font-medium transition-all ${subTab === 'byaccount' ? 'bg-slate-800 text-slate-100' : 'text-slate-400 hover:text-slate-200'}`}>
+                                                By Account
+                                            </button>
+                                            <button onClick={() => setSubTab('allholdings')} className={`px-4 py-2 rounded-lg font-medium transition-all ${subTab === 'allholdings' ? 'bg-slate-800 text-slate-100' : 'text-slate-400 hover:text-slate-200'}`}>
+                                                All Holdings
+                                            </button>
+                                            <button onClick={() => setSubTab('transactions')} className={`px-4 py-2 rounded-lg font-medium transition-all ${subTab === 'transactions' ? 'bg-slate-800 text-slate-100' : 'text-slate-400 hover:text-slate-200'}`}>
+                                                Transactions
+                                            </button>
+                                        </div>
+
+                                        {/* By Account View */}
+                                        {subTab === 'byaccount' && (
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fadeIn">
+                                                {Object.entries(portfolioData.holdings2025.accountsByNumber).map(([accountNum, account2025]) => {
+                                                    const accountName = portfolioData.accountNames?.[accountNum] || accountNum;
+                                                    const account2024 = portfolioData.holdings2024?.accountsByNumber?.[accountNum] || { value: 0 };
+                                                    const acctTrans = portfolioData.accountTransactions?.[accountNum] || { netInvested: 0 };
+                                                    const accountMarketGain = account2025.value - (account2024.value + acctTrans.netInvested);
+                                                    const accountROIC = (account2024.value + acctTrans.netInvested) > 0 
+                                                        ? (accountMarketGain / (account2024.value + acctTrans.netInvested)) * 100 
+                                                        : 0;
+
+                                                    return (
+                                                        <div key={accountNum} className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-2xl p-6">
+                                                            <div className="flex justify-between items-start mb-4">
+                                                                <div>
+                                                                    <h3 className="font-semibold text-xl text-slate-200">{accountName}</h3>
+                                                                    <p className="text-xs text-slate-500">{accountNum}</p>
+                                                                </div>
+                                                                <div className="text-right">
+                                                                    <div className="text-2xl font-bold text-slate-100">{formatCurrency(account2025.value)}</div>
+                                                                    <div className={`text-sm font-semibold ${accountROIC >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                                        {accountROIC >= 0 ? '▲' : '▼'} {Math.abs(accountROIC).toFixed(2)}% ROIC
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="grid grid-cols-4 gap-4 text-center">
+                                                                <div>
+                                                                    <div className="text-xs text-slate-500 mb-1">HOLDINGS</div>
+                                                                    <div className="font-semibold text-slate-200">{account2025.holdings}</div>
+                                                                </div>
+                                                                <div>
+                                                                    <div className="text-xs text-slate-500 mb-1">START '24</div>
+                                                                    <div className="font-semibold text-slate-200">{formatNumber(account2024.value)}</div>
+                                                                </div>
+                                                                <div>
+                                                                    <div className="text-xs text-slate-500 mb-1">NET INV '25</div>
+                                                                    <div className="font-semibold text-slate-200">{formatNumber(acctTrans.netInvested)}</div>
+                                                                </div>
+                                                                <div>
+                                                                    <div className="text-xs text-slate-500 mb-1">MARKET GAIN</div>
+                                                                    <div className={`font-semibold ${accountMarketGain >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                                        {formatNumber(accountMarketGain)}
+                                                                    </div>
+                                                                </div>
                                                             </div>
                                                         </div>
-                                                    </div>
-                                                    <div className="relative h-2 bg-slate-700/50 rounded-full overflow-hidden">
-                                                        <div 
-                                                            className="absolute h-full bg-gradient-to-r from-emerald-400 to-cyan-400 rounded-full transition-all duration-500"
-                                                            style={{ width: `${percentage}%` }}
-                                                        />
-                                                    </div>
-                                                    <div className="text-xs text-slate-500 mt-2">{percentage.toFixed(1)}% of portfolio</div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {activeTab === '2025' && (
-                            <div className="space-y-6 animate-fadeIn">
-                                {/* Top Metrics Overview */}
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                    <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-xl p-4">
-                                        <div className="text-slate-400 text-xs font-medium mb-1">2024 Starting Value</div>
-                                        <div className="text-xl font-bold text-slate-200">{formatCurrency(startValue)}</div>
-                                    </div>
-
-                                    <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-xl p-4">
-                                        <div className="text-slate-400 text-xs font-medium mb-1">Net Invested '25</div>
-                                        <div className="text-xl font-bold text-emerald-400">{formatCurrency(netInflows)}</div>
-                                        <div className="text-xs text-slate-500">Buys + Reinv - Sells</div>
-                                    </div>
-
-                                    <div className="bg-gradient-to-br from-cyan-900/30 to-blue-900/30 backdrop-blur-sm border border-cyan-500/50 rounded-xl p-4 shadow-lg shadow-cyan-500/20">
-                                        <div className="text-slate-300 text-xs font-medium mb-1">True Market Gain</div>
-                                        <div className="text-xl font-bold text-cyan-400">{formatCurrency(marketGain)}</div>
-                                        <div className="text-xs text-cyan-400 font-semibold">{formatPercent(marketGainPct)} ROIC</div>
-                                    </div>
-
-                                    <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-xl p-4">
-                                        <div className="text-slate-400 text-xs font-medium mb-1">Total Portfolio Value</div>
-                                        <div className="text-xl font-bold text-slate-200">{formatCurrency(endValue)}</div>
-                                        <div className="text-xs text-emerald-400">▲ {formatPercent(totalChangePct)} vs 2024</div>
-                                    </div>
-                                </div>
-
-                                {/* Transaction Breakdown */}
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                    <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-xl p-5">
-                                        <div className="text-slate-400 text-sm font-medium mb-2">2025 Purchases</div>
-                                        <div className="text-2xl font-bold text-slate-100">{formatCurrency(portfolioData.transactions2025.purchases)}</div>
-                                    </div>
-
-                                    <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-xl p-5">
-                                        <div className="text-slate-400 text-sm font-medium mb-2">2025 Sales</div>
-                                        <div className="text-2xl font-bold text-slate-100">{formatCurrency(portfolioData.transactions2025.sales)}</div>
-                                    </div>
-
-                                    <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-xl p-5">
-                                        <div className="text-slate-400 text-sm font-medium mb-2">Dividends Reinvested</div>
-                                        <div className="text-2xl font-bold text-slate-100">{formatCurrency(portfolioData.transactions2025.dividendsReinvested)}</div>
-                                    </div>
-                                </div>
-
-                                {/* Waterfall Analysis */}
-                                <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-2xl p-8">
-                                    <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
-                                        <BarChart3 />
-                                        2025 Waterfall Analysis
-                                    </h2>
-
-                                    <div className="space-y-6">
-                                        {/* Starting Value */}
-                                        <div className="flex justify-between items-center p-5 bg-slate-800/50 rounded-xl border border-slate-700">
-                                            <div className="flex items-center">
-                                                <div className="w-3 h-3 bg-blue-500 rounded-full mr-4" />
-                                                <span className="font-semibold text-lg">Starting Value (2024)</span>
+                                                    );
+                                                })}
                                             </div>
-                                            <span className="text-2xl font-bold text-blue-400">{formatCurrency(startValue)}</span>
-                                        </div>
+                                        )}
 
-                                        {/* Cash Moves Section */}
-                                        <div className="ml-8 pl-6 border-l-2 border-slate-700 space-y-4">
-                                            <div className="text-slate-400 font-semibold mb-3">Cash Moves</div>
-                                            
-                                            <div className="flex justify-between items-center p-4 bg-slate-800/30 rounded-lg">
-                                                <div className="flex items-center">
-                                                    <ArrowUpRight />
-                                                    <span className="text-slate-300 ml-3">2025 Purchases</span>
-                                                </div>
-                                                <span className="text-lg font-semibold text-green-400">+{formatCurrency(portfolioData.transactions2025.purchases)}</span>
+                                        {/* All Holdings View */}
+                                        {subTab === 'allholdings' && (
+                                            <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-2xl p-8 animate-fadeIn">
+                                                <h2 className="text-xl font-bold mb-4">All Holdings Summary</h2>
+                                                <p className="text-slate-400">This view would show all individual holdings across all accounts. Upload holdings CSV to see detailed breakdown.</p>
                                             </div>
+                                        )}
 
-                                            <div className="flex justify-between items-center p-4 bg-slate-800/30 rounded-lg">
-                                                <div className="flex items-center">
-                                                    <ArrowUpRight />
-                                                    <span className="text-slate-300 ml-3">Dividends Reinvested</span>
-                                                </div>
-                                                <span className="text-lg font-semibold text-green-400">+{formatCurrency(portfolioData.transactions2025.dividendsReinvested)}</span>
-                                            </div>
-
-                                            <div className="flex justify-between items-center p-4 bg-slate-800/30 rounded-lg">
-                                                <div className="flex items-center">
-                                                    <ArrowDownRight />
-                                                    <span className="text-slate-300 ml-3">2025 Sales</span>
-                                                </div>
-                                                <span className="text-lg font-semibold text-red-400">-{formatCurrency(portfolioData.transactions2025.sales)}</span>
-                                            </div>
-
-                                            <div className="flex justify-between items-center p-5 bg-emerald-900/20 rounded-xl border border-emerald-700/50">
-                                                <span className="font-semibold">Net Cash Inflows</span>
-                                                <span className="text-xl font-bold text-emerald-400">+{formatCurrency(netInflows)}</span>
-                                            </div>
-                                        </div>
-
-                                        {/* Market Move */}
-                                        <div className="ml-8 pl-6 border-l-2 border-slate-700">
-                                            <div className="text-slate-400 font-semibold mb-3">Market Moves</div>
-                                            
-                                            <div className="flex justify-between items-center p-5 bg-gradient-to-r from-cyan-900/30 to-blue-900/30 rounded-xl border border-cyan-600/50">
-                                                <div>
-                                                    <span className="font-semibold text-lg">Market Gain (Price Appreciation)</span>
-                                                    <div className="text-sm text-slate-400 mt-1">Pure performance excluding cash flows</div>
-                                                </div>
-                                                <div className="text-right">
-                                                    <div className="text-2xl font-bold text-cyan-400">{formatCurrency(marketGain)}</div>
-                                                    <div className="text-sm text-cyan-400 font-semibold">{formatPercent(marketGainPct)} ROIC</div>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {/* Ending Value */}
-                                        <div className="flex justify-between items-center p-5 bg-gradient-to-r from-emerald-900/40 to-cyan-900/40 rounded-xl border border-emerald-500/50 shadow-lg shadow-emerald-500/20">
-                                            <div className="flex items-center">
-                                                <div className="w-3 h-3 bg-emerald-400 rounded-full mr-4" />
-                                                <span className="font-semibold text-lg">Ending Value (2025)</span>
-                                            </div>
-                                            <span className="text-3xl font-bold text-emerald-400">{formatCurrency(endValue)}</span>
-                                        </div>
-                                    </div>
-
-                                    {/* Summary Equation */}
-                                    <div className="mt-8 p-6 bg-slate-800/30 rounded-xl border border-slate-700">
-                                        <div className="text-center text-slate-300 font-mono text-sm">
-                                            <span className="text-blue-400 font-semibold">{formatCurrency(startValue)}</span>
-                                            {' + '}
-                                            <span className="text-emerald-400 font-semibold">{formatCurrency(netInflows)}</span>
-                                            {' + '}
-                                            <span className="text-cyan-400 font-semibold">{formatCurrency(marketGain)}</span>
-                                            {' = '}
-                                            <span className="text-emerald-400 font-bold text-base">{formatCurrency(endValue)}</span>
-                                        </div>
-                                        <div className="text-center text-xs text-slate-500 mt-2">
-                                            Start Value + Net Inflows + Market Gain = End Value
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Account-by-Account Breakdown */}
-                                <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-2xl p-8">
-                                    <h2 className="text-2xl font-bold mb-6">By Account</h2>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                                        {Object.entries(portfolioData.holdings2025.accountsByNumber).map(([accountNum, account2025]) => {
-                                            const accountName = portfolioData.accountNames[accountNum];
-                                            const account2024 = portfolioData.holdings2024.accountsByNumber[accountNum] || { value: 0 };
-                                            const accountChange = account2025.value - account2024.value;
-                                            const accountChangePct = account2024.value > 0 ? (accountChange / account2024.value) * 100 : 0;
-
-                                            return (
-                                                <div key={accountNum} className="bg-slate-800/50 rounded-xl p-5 border border-slate-700">
-                                                    <div className="font-semibold text-slate-200 mb-1">{accountName}</div>
-                                                    <div className="text-xs text-slate-500 mb-3">{accountNum}</div>
-                                                    
-                                                    <div className="space-y-2 text-sm">
-                                                        <div className="flex justify-between">
-                                                            <span className="text-slate-400">Holdings</span>
-                                                            <span className="text-slate-200">{account2025.holdings}</span>
-                                                        </div>
-                                                        <div className="flex justify-between">
-                                                            <span className="text-slate-400">Start '24</span>
-                                                            <span className="text-slate-200">{formatCurrency(account2024.value)}</span>
-                                                        </div>
-                                                        <div className="flex justify-between">
-                                                            <span className="text-slate-400">Net Inv '25</span>
-                                                            <span className="text-slate-200">$0.00</span>
-                                                        </div>
-                                                        <div className="flex justify-between">
-                                                            <span className="text-slate-400">Market Gain</span>
-                                                            <span className={accountChange >= 0 ? 'text-emerald-400' : 'text-red-400'}>
-                                                                {formatCurrency(accountChange)}
-                                                            </span>
-                                                        </div>
-                                                        <div className="pt-2 border-t border-slate-700/50 flex justify-between font-semibold">
-                                                            <span className="text-slate-300">End Value</span>
-                                                            <span className="text-slate-100">{formatCurrency(account2025.value)}</span>
-                                                        </div>
-                                                        <div className="flex justify-between">
-                                                            <span className="text-xs text-slate-500">ROIC</span>
-                                                            <span className={`text-xs font-semibold ${accountChangePct >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                                                {formatPercent(accountChangePct)}
-                                                            </span>
-                                                        </div>
+                                        {/* Transactions View */}
+                                        {subTab === 'transactions' && (
+                                            <div className="space-y-6 animate-fadeIn">
+                                                <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-2xl p-8">
+                                                    <h2 className="text-xl font-bold mb-6">2025 Transaction Breakdown</h2>
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                        {Object.entries(portfolioData.accountTransactions || {}).map(([accountNum, trans]) => {
+                                                            const accountName = portfolioData.accountNames?.[accountNum] || accountNum;
+                                                            
+                                                            return (
+                                                                <div key={accountNum} className="bg-slate-800/50 rounded-xl p-5 border border-slate-700">
+                                                                    <div className="font-semibold text-lg text-slate-200 mb-4">{accountName}</div>
+                                                                    <div className="space-y-3">
+                                                                        <div className="flex justify-between">
+                                                                            <span className="text-slate-400">Purchases:</span>
+                                                                            <span className="font-semibold text-slate-200">{formatCurrency(trans.purchases)}</span>
+                                                                        </div>
+                                                                        <div className="flex justify-between">
+                                                                            <span className="text-slate-400">Sales:</span>
+                                                                            <span className="font-semibold text-slate-200">{formatCurrency(trans.sales)}</span>
+                                                                        </div>
+                                                                        <div className="flex justify-between">
+                                                                            <span className="text-slate-400">Dividends Reinvested:</span>
+                                                                            <span className="font-semibold text-slate-200">{formatCurrency(trans.dividendsReinvested)}</span>
+                                                                        </div>
+                                                                        <div className="pt-3 border-t border-slate-700 flex justify-between">
+                                                                            <span className="text-slate-300 font-semibold">Net Invested:</span>
+                                                                            <span className={`font-bold ${trans.netInvested >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                                                {formatCurrency(trans.netInvested)}
+                                                                            </span>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
                                                     </div>
                                                 </div>
-                                            );
-                                        })}
+                                            </div>
+                                        )}
                                     </div>
-                                </div>
-                            </div>
+                                )}
+                            </>
                         )}
                     </div>
                 </div>
