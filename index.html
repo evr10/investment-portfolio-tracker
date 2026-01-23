@@ -457,55 +457,99 @@
         const stocks2025 = h25.holdings.reduce((s, h) => s + h.marketValue, 0);
         const cost2025 = h25.holdings.reduce((s, h) => s + h.costBasis, 0);
 
+        // Core values
         const startVal = stocks2024 + cash2024;
         const endVal = stocks2025 + cash2025;
-        const netFlow = data.tx2025?.net || 0;
-        const marketGain = endVal - (startVal + netFlow);
-        const marketGainPct = (startVal + netFlow) > 0 ? (marketGain / (startVal + netFlow)) * 100 : 0;
-        const unrealized = endVal - cost2025;
-        const unrealizedPct = cost2025 > 0 ? (unrealized / cost2025) * 100 : 0;
+        
+        // Get 2025 transactions
+        const tx = data.transactions || [];
+        const tx2025 = tx.filter(t => t.date && new Date(t.date).getFullYear() === 2025 && t.type !== 'HSA');
+        
+        // ═══════════════════════════════════════════════════════════════════
+        // CONSISTENT TRANSACTION AGGREGATION (all positive values)
+        // ═══════════════════════════════════════════════════════════════════
+        const purchases = tx2025.filter(t => t.type === 'Buy').reduce((s, t) => s + Math.abs(t.amount || 0), 0);
+        const sales = tx2025.filter(t => t.type === 'Sell').reduce((s, t) => s + Math.abs(t.amount || 0), 0);
+        const reinvested = tx2025.filter(t => t.type === 'Reinvestment').reduce((s, t) => s + Math.abs(t.amount || 0), 0);
+        const dividends = tx2025.filter(t => t.type === 'Dividend').reduce((s, t) => s + Math.abs(t.amount || 0), 0);
+        const cashFlow = tx2025.filter(t => t.type === 'Cash').reduce((s, t) => s + (t.amount || 0), 0); // Can be +/-
+        
+        // ═══════════════════════════════════════════════════════════════════
+        // MARKET GAIN CALCULATION
+        // Formula: 2024 Start + Cash Flow + Dividends + Purchases + Reinvested - Sales + Market Gain = 2025 End
+        // Therefore: Market Gain = 2025 End - 2024 Start - Cash Flow - Dividends - Purchases - Reinvested + Sales
+        // ═══════════════════════════════════════════════════════════════════
+        const marketGain = endVal - startVal - cashFlow - dividends - purchases - reinvested + sales;
+        const investedCapital = startVal + purchases + reinvested - sales; // Capital at risk
+        const marketGainPct = investedCapital > 0 ? (marketGain / investedCapital) * 100 : 0;
+        
+        // Other metrics
         const totalChange = endVal - startVal;
         const totalChangePct = startVal > 0 ? (totalChange / startVal) * 100 : 0;
+        const unrealized = endVal - cost2025;
+        const unrealizedPct = cost2025 > 0 ? (unrealized / cost2025) * 100 : 0;
 
-        // Waterfall
-        const tx = data.transactions || [];
-        const tx2025 = tx.filter(t => t.date && new Date(t.date).getFullYear() === 2025);
-        const cashFlow = tx2025.filter(t => t.type === 'Cash').reduce((s, t) => s + (t.amount || 0), 0);
-        const dividends = tx2025.filter(t => t.type === 'Dividend').reduce((s, t) => s + (t.amount || 0), 0);
-        const netPurchases = -(data.tx2025?.purchases || 0) + (data.tx2025?.sales || 0);
-        const mktGain = endVal - (startVal + cashFlow + dividends + netPurchases);
-
+        // ═══════════════════════════════════════════════════════════════════
+        // WATERFALL CHART DATA
+        // Each step shows positive for "adds to portfolio", negative for "removes from portfolio"
+        // ═══════════════════════════════════════════════════════════════════
+        let cumulative = startVal;
         const waterfall = [
           { name: '2024 Start', value: startVal, start: 0, end: startVal, type: 'anchor' },
-          { name: 'Cash Flow', value: cashFlow, start: startVal, end: startVal + cashFlow, type: 'step' },
-          { name: 'Dividends', value: dividends, start: startVal + cashFlow, end: startVal + cashFlow + dividends, type: 'step' },
-          { name: 'Net Purchases', value: netPurchases, start: startVal + cashFlow + dividends, end: startVal + cashFlow + dividends + netPurchases, type: 'step' },
-          { name: 'Market Gain', value: mktGain, start: startVal + cashFlow + dividends + netPurchases, end: endVal, type: 'step' },
-          { name: '2025 End', value: endVal, start: 0, end: endVal, type: 'anchor' },
         ];
+        
+        // Cash Flow (can be + or -)
+        waterfall.push({ name: 'Cash Flow', value: cashFlow, start: cumulative, end: cumulative + cashFlow, type: 'step' });
+        cumulative += cashFlow;
+        
+        // Dividends (always +, money received)
+        waterfall.push({ name: 'Dividends', value: dividends, start: cumulative, end: cumulative + dividends, type: 'step' });
+        cumulative += dividends;
+        
+        // Net Stock Activity: Purchases and Reinvested add, Sales subtract
+        const netStockActivity = purchases + reinvested - sales;
+        waterfall.push({ name: 'Net Invested', value: netStockActivity, start: cumulative, end: cumulative + netStockActivity, type: 'step' });
+        cumulative += netStockActivity;
+        
+        // Market Gain (the residual)
+        waterfall.push({ name: 'Market Gain', value: marketGain, start: cumulative, end: cumulative + marketGain, type: 'step' });
+        cumulative += marketGain;
+        
+        waterfall.push({ name: '2025 End', value: endVal, start: 0, end: endVal, type: 'anchor' });
 
-        // By Account ROIC
+        // ═══════════════════════════════════════════════════════════════════
+        // BY ACCOUNT ROIC
+        // ═══════════════════════════════════════════════════════════════════
         const accountROIC = Object.entries(h25.accounts).map(([num, acc]) => {
           const name = data.accountNames?.[num] || num;
-          const start = h24.accounts[num]?.value || 0;
-          const netIn = data.accountTx?.[num]?.net || 0;
-          const roicBase = start + netIn;
-          const gain = acc.value - roicBase;
-          const roic = roicBase > 0 ? (gain / roicBase) * 100 : 0;
-          return { num, name, start, end: acc.value, netIn, gain, roic, costBasis: acc.costBasis, holdings: acc.holdings };
+          const acctStart = h24.accounts[num]?.value || 0;
+          
+          // Get account-level transactions
+          const acctTx2025 = tx2025.filter(t => normalize(t.accountNumber) === num);
+          const acctPurchases = acctTx2025.filter(t => t.type === 'Buy').reduce((s, t) => s + Math.abs(t.amount || 0), 0);
+          const acctSales = acctTx2025.filter(t => t.type === 'Sell').reduce((s, t) => s + Math.abs(t.amount || 0), 0);
+          const acctReinvested = acctTx2025.filter(t => t.type === 'Reinvestment').reduce((s, t) => s + Math.abs(t.amount || 0), 0);
+          const acctDividends = acctTx2025.filter(t => t.type === 'Dividend').reduce((s, t) => s + Math.abs(t.amount || 0), 0);
+          
+          const netIn = acctPurchases + acctReinvested - acctSales;
+          const acctInvestedCapital = acctStart + acctPurchases + acctReinvested - acctSales;
+          const acctMarketGain = acc.value - acctStart - netIn - acctDividends;
+          const roic = acctInvestedCapital > 0 ? (acctMarketGain / acctInvestedCapital) * 100 : 0;
+          
+          return { num, name, start: acctStart, end: acc.value, netIn, dividends: acctDividends, marketGain: acctMarketGain, roic, costBasis: acc.costBasis, holdings: acc.holdings };
         }).filter(a => a.end > 0);
 
-        // Holdings Analysis - aggregate by symbol
+        // ═══════════════════════════════════════════════════════════════════
+        // HOLDINGS ANALYSIS - aggregate by symbol
+        // ═══════════════════════════════════════════════════════════════════
         const holdingsMap = {};
         
-        // Add 2024 holdings
         h24.holdings.forEach(h => {
           const key = h.symbol || h.description;
           if (!holdingsMap[key]) holdingsMap[key] = { symbol: h.symbol, description: h.description, val2024: 0, val2025: 0, dividends: 0, bought: 0, sold: 0, reinvested: 0 };
           holdingsMap[key].val2024 += h.marketValue;
         });
         
-        // Add 2025 holdings
         h25.holdings.forEach(h => {
           const key = h.symbol || h.description;
           if (!holdingsMap[key]) holdingsMap[key] = { symbol: h.symbol, description: h.description, val2024: 0, val2025: 0, dividends: 0, bought: 0, sold: 0, reinvested: 0 };
@@ -513,18 +557,17 @@
           holdingsMap[key].description = h.description || holdingsMap[key].description;
         });
         
-        // Add transaction data for 2025
         tx2025.forEach(t => {
-          if (t.type === 'HSA' || !t.symbol) return;
+          if (!t.symbol) return;
           const key = t.symbol;
           if (!holdingsMap[key]) holdingsMap[key] = { symbol: t.symbol, description: t.description, val2024: 0, val2025: 0, dividends: 0, bought: 0, sold: 0, reinvested: 0 };
-          if (t.type === 'Dividend') holdingsMap[key].dividends += Math.abs(t.amount || 0);
-          else if (t.type === 'Buy') holdingsMap[key].bought += Math.abs(t.amount || 0);
-          else if (t.type === 'Sell') holdingsMap[key].sold += Math.abs(t.amount || 0);
-          else if (t.type === 'Reinvestment') holdingsMap[key].reinvested += Math.abs(t.amount || 0);
+          const amt = Math.abs(t.amount || 0);
+          if (t.type === 'Dividend') holdingsMap[key].dividends += amt;
+          else if (t.type === 'Buy') holdingsMap[key].bought += amt;
+          else if (t.type === 'Sell') holdingsMap[key].sold += amt;
+          else if (t.type === 'Reinvestment') holdingsMap[key].reinvested += amt;
         });
         
-        // Calculate market gain for each holding
         const holdingsAnalysis = Object.values(holdingsMap).map(h => {
           const netActivity = h.bought + h.reinvested - h.sold;
           const marketGain = h.val2025 - h.val2024 - netActivity;
@@ -534,7 +577,9 @@
 
         return {
           cash2024, cash2025, stocks2024, stocks2025, cost2025,
-          startVal, endVal, netFlow, marketGain, marketGainPct,
+          startVal, endVal, 
+          purchases, sales, reinvested, dividends, cashFlow,
+          marketGain, marketGainPct,
           unrealized, unrealizedPct, totalChange, totalChangePct,
           waterfall, accountROIC, holdingsAnalysis,
           accounts24: h24.accounts, accounts25: h25.accounts,
@@ -730,13 +775,13 @@
                       <div className="space-y-6 animate-fadeUp">
                         {/* Summary Stats */}
                         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-                          <Card><Stat label="Portfolio Value" value={fmt.compact(computed.endVal)} sub={fmt.percent(computed.totalChangePct) + ' vs 2024'} /></Card>
+                          <Card><Stat label="2025 Value" value={fmt.compact(computed.endVal)} sub={fmt.percent(computed.totalChangePct) + ' vs 2024'} /></Card>
                           <Card><Stat label="2024 Start" value={fmt.compact(computed.startVal)} sub="Stocks + Cash" /></Card>
-                          <Card><Stat label="Net Invested" value={fmt.compact(computed.netFlow)} sub="Buys + Reinv - Sells" /></Card>
-                          <Card className="border-success/30"><Stat label="Market Gain" value={fmt.compact(computed.marketGain)} sub={`ROIC: ${fmt.percent(computed.marketGainPct)}`} accent /></Card>
-                          <Card><Stat label="Purchases" value={fmt.compact(data.tx2025?.purchases || 0)} /></Card>
-                          <Card><Stat label="Sales" value={fmt.compact(data.tx2025?.sales || 0)} /></Card>
-                          <Card><Stat label="Reinvested" value={fmt.compact(data.tx2025?.reinvested || 0)} /></Card>
+                          <Card><Stat label="Dividends" value={fmt.compact(computed.dividends)} sub="Cash received" /></Card>
+                          <Card><Stat label="Net Invested" value={fmt.compact(computed.purchases + computed.reinvested - computed.sales)} sub="Buys + Reinv − Sells" /></Card>
+                          <Card className="border-accent/30"><Stat label="Market Gain" value={fmt.compact(computed.marketGain)} sub={`ROIC: ${fmt.percent(computed.marketGainPct)}`} accent /></Card>
+                          <Card><Stat label="Purchases" value={fmt.compact(computed.purchases)} /></Card>
+                          <Card><Stat label="Sales" value={fmt.compact(computed.sales)} /></Card>
                         </div>
 
                         {/* Sub Navigation */}
@@ -769,11 +814,14 @@
                               <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
                                 <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Understanding the Bridge</h3>
                                 <div className="text-xs text-gray-500 dark:text-gray-400 space-y-1">
-                                  <p><strong>Cash Flow:</strong> Deposits, withdrawals, and margin interest</p>
-                                  <p><strong>Dividends:</strong> Cash dividends received (not reinvested)</p>
-                                  <p><strong>Net Purchases:</strong> Money deployed into stocks (purchases - sales)</p>
-                                  <p><strong>Market Gain:</strong> Portfolio appreciation from price changes</p>
+                                  <p><strong>Cash Flow:</strong> Deposits, withdrawals, margin interest (can be + or −)</p>
+                                  <p><strong>Dividends:</strong> Cash dividends received</p>
+                                  <p><strong>Net Invested:</strong> Purchases + Reinvested − Sales (new capital deployed)</p>
+                                  <p><strong>Market Gain:</strong> Price appreciation (the residual)</p>
                                 </div>
+                                <p className="text-xs text-gray-400 dark:text-gray-500 mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
+                                  <strong>Formula:</strong> 2024 Start + Cash Flow + Dividends + Net Invested + Market Gain = 2025 End
+                                </p>
                               </div>
                             </div>
                           </Card>
@@ -789,13 +837,19 @@
                               columns={[
                                 { key: 'name', header: 'Account' },
                                 { key: 'start', header: '2024 Value', align: 'right', render: v => fmt.currencyFull(v) },
-                                { key: 'netIn', header: 'Net Invested', align: 'right', render: v => fmt.currencyFull(v) },
-                                { key: 'end', header: '2025 Value', align: 'right', render: v => fmt.currencyFull(v) },
-                                { key: 'gain', header: 'Gain', align: 'right', render: v => <span className={v >= 0 ? 'text-success' : 'text-danger'}>{fmt.currencyFull(v)}</span> },
+                                { key: 'netIn', header: 'Net Invested', align: 'right', render: v => <span className={v >= 0 ? 'text-accent' : 'text-danger'}>{fmt.currencyFull(v)}</span> },
+                                { key: 'dividends', header: 'Dividends', align: 'right', render: v => <span className="text-success">{fmt.currencyFull(v)}</span> },
+                                { key: 'marketGain', header: 'Market Gain', align: 'right', render: v => <span className={v >= 0 ? 'text-success' : 'text-danger'}>{fmt.currencyFull(v)}</span> },
+                                { key: 'end', header: '2025 Value', align: 'right', render: v => <span className="font-semibold">{fmt.currencyFull(v)}</span> },
                                 { key: 'roic', header: 'ROIC', align: 'right', render: v => <span className={`font-semibold ${v >= 0 ? 'text-success' : 'text-danger'}`}>{fmt.percent(v)}</span> },
                               ]}
                               data={computed.accountROIC}
                             />
+                            <div className="px-5 py-3 bg-gray-50 dark:bg-gray-800/50 border-t border-gray-100 dark:border-gray-700">
+                              <p className="text-xs text-gray-500 dark:text-gray-400">
+                                <strong>Formula:</strong> 2024 Value + Net Invested + Dividends + Market Gain = 2025 Value
+                              </p>
+                            </div>
                           </Card>
                         )}
 
