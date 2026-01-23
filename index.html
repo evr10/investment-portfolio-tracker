@@ -83,6 +83,8 @@
     const classifyTransaction = (action, amount, accountName) => {
       if (isHSA(accountName)) return 'HSA';
       const a = action.toUpperCase();
+      // ESPP: the journal credit is a duplicate entry, ignore it
+      if (/JOURNALED SPP PURCHASE CREDIT/.test(a)) return 'Other';
       if (/MARGIN INTEREST|WIRE TRANSFER|ELECTRONIC FUNDS|FEE/.test(a)) return 'Cash';
       if (/CONTRIBUTION|CONVERSION SHARES DEPOSITED/.test(a)) return 'Buy';
       if (/REINVESTMENT/.test(a)) return 'Reinvestment';
@@ -847,7 +849,12 @@
                                 }},
                                 { key: 'symbol', header: 'Symbol', render: v => v || '—' },
                                 { key: 'action', header: 'Action', render: v => <span className="text-xs text-gray-500 truncate max-w-64 block">{v}</span> },
-                                { key: 'amount', header: 'Amount', align: 'right', render: v => <span className={v >= 0 ? 'text-success' : 'text-danger'}>{fmt.currencyFull(v)}</span> },
+                                { key: 'amount', header: 'Amount', align: 'right', render: (v, r) => {
+                                  // Show Buy/Reinvestment as positive amounts
+                                  const displayAmt = (r.type === 'Buy' || r.type === 'Reinvestment') ? Math.abs(v) : v;
+                                  const isPositive = displayAmt >= 0;
+                                  return <span className={isPositive ? 'text-success' : 'text-danger'}>{fmt.currencyFull(displayAmt)}</span>;
+                                }},
                               ]}
                               data={filteredTx}
                             />
