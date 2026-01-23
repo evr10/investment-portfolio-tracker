@@ -355,40 +355,48 @@
       const parseCSV = file => new Promise((res, rej) => Papa.parse(file, { header: true, skipEmptyLines: true, complete: r => res(r.data), error: rej }));
 
       const handleUpload = useCallback(async (e, type) => {
-        const fileList = Array.from(e.target.files);
+        const fileList = Array.from(e.target.files || []);
         if (!fileList.length) return;
         try {
           for (const file of fileList) {
-            setFiles(f => ({ ...f, [type]: [...f[type], file.name] }));
+            setFiles(f => ({ ...f, [type]: (f[type] || []).concat(file.name) }));
             if (type === 'h2024' || type === 'h2025') {
               const h = processHoldings(await parseCSV(file));
               const key = type === 'h2024' ? 'holdings2024' : 'holdings2025';
               setData(d => {
-                const prev = d?.[key] || { totalValue: 0, totalCost: 0, accounts: {}, holdings: [] };
+                const prev = (d && d[key]) ? d[key] : { totalValue: 0, totalCost: 0, accounts: {}, holdings: [] };
+                const prevAccounts = prev.accounts || {};
+                const prevHoldings = prev.holdings || [];
                 return {
-                  ...d,
+                  ...(d || {}),
                   [key]: {
-                    totalValue: prev.totalValue + h.totalValue,
-                    totalCost: prev.totalCost + h.totalCost,
-                    accounts: { ...prev.accounts, ...h.accounts },
-                    holdings: [...prev.holdings, ...h.holdings]
+                    totalValue: (prev.totalValue || 0) + h.totalValue,
+                    totalCost: (prev.totalCost || 0) + h.totalCost,
+                    accounts: Object.assign({}, prevAccounts, h.accounts),
+                    holdings: prevHoldings.concat(h.holdings)
                   }
                 };
               });
             } else {
               const t = processTransactions(await parseCSV(file));
-              setData(d => ({
-                ...d,
-                accountNames: { ...d?.accountNames, ...t.names },
-                accountTx: { ...d?.accountTx, ...t.acctTx },
-                transactions: [...(d?.transactions || []), ...t.all],
-                tx2025: {
-                  purchases: (d?.tx2025?.purchases || 0) + t.purchases,
-                  sales: (d?.tx2025?.sales || 0) + t.sales,
-                  reinvested: (d?.tx2025?.reinvested || 0) + t.reinvested,
-                  net: (d?.tx2025?.net || 0) + t.net
-                }
-              }));
+              setData(d => {
+                const prevTx = (d && d.transactions) ? d.transactions : [];
+                const prevNames = (d && d.accountNames) ? d.accountNames : {};
+                const prevAcctTx = (d && d.accountTx) ? d.accountTx : {};
+                const prevTx2025 = (d && d.tx2025) ? d.tx2025 : {};
+                return {
+                  ...(d || {}),
+                  accountNames: Object.assign({}, prevNames, t.names),
+                  accountTx: Object.assign({}, prevAcctTx, t.acctTx),
+                  transactions: prevTx.concat(t.all),
+                  tx2025: {
+                    purchases: (prevTx2025.purchases || 0) + t.purchases,
+                    sales: (prevTx2025.sales || 0) + t.sales,
+                    reinvested: (prevTx2025.reinvested || 0) + t.reinvested,
+                    net: (prevTx2025.net || 0) + t.net
+                  }
+                };
+              });
             }
           }
           e.target.value = '';
