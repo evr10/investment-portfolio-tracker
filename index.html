@@ -1,758 +1,819 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Portfolio Analytics Dashboard</title>
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap');
-        * { font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .animate-fadeIn { animation: fadeIn 0.5s ease-out; }
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: #0f172a; }
-        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #475569; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Portfolio Analytics</title>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['IBM Plex Sans', 'system-ui', 'sans-serif'],
+            mono: ['IBM Plex Mono', 'monospace'],
+          },
+          colors: {
+            accent: { DEFAULT: '#0066FF', light: '#3385FF', dark: '#0052CC' },
+            success: { DEFAULT: '#00A870', light: '#00D48F', dark: '#008558' },
+            danger: { DEFAULT: '#E5484D', light: '#F27A7D', dark: '#CD2B31' },
+            surface: { DEFAULT: '#FAFBFC', dark: '#111827' },
+          },
+          boxShadow: {
+            'card': '0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06)',
+            'card-hover': '0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04)',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    * { -webkit-font-smoothing: antialiased; }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .animate-fadeUp { animation: fadeUp 0.3s ease-out forwards; }
+    .tabular-nums { font-variant-numeric: tabular-nums; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #D1D5DB; border-radius: 3px; }
+    .dark ::-webkit-scrollbar-thumb { background: #4B5563; }
+    input[type="file"]::file-selector-button {
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-weight: 500;
+      font-size: 13px;
+      padding: 6px 12px;
+      border-radius: 6px;
+      border: 1px solid #E5E7EB;
+      background: white;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    input[type="file"]::file-selector-button:hover { background: #F9FAFB; border-color: #D1D5DB; }
+    .dark input[type="file"]::file-selector-button { background: #1F2937; border-color: #374151; color: #E5E7EB; }
+    .dark input[type="file"]::file-selector-button:hover { background: #374151; }
+  </style>
 </head>
-<body>
-    <div id="root"></div>
+<body class="bg-surface dark:bg-surface-dark transition-colors">
+  <div id="root"></div>
 
-    <script type="text/babel">
-        const { useState, useEffect } = React;
+  <script type="text/babel">
+    const { useState, useEffect, useMemo, useCallback } = React;
 
-        const STARTING_CASH_BALANCE = 0;
+    // ═══════════════════════════════════════════════════════════════════════════
+    // UTILITY FUNCTIONS - Pure functions for calculations
+    // ═══════════════════════════════════════════════════════════════════════════
 
-        const normalizeAccountNumber = (accountNum) => {
-            if (!accountNum) return '';
-            return accountNum.toString().replace(/[-\s]/g, '');
-        };
+    const STARTING_CASH = 0;
+    const normalize = s => s?.toString().replace(/[-\s]/g, '') || '';
+    const isHSA = name => name?.toUpperCase().includes('HEALTH SAVINGS');
+    const fmt = {
+      currency: v => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(v),
+      currencyFull: v => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(v),
+      percent: v => `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`,
+      compact: v => Math.abs(v) >= 1e6 ? `$${(v/1e6).toFixed(1)}M` : Math.abs(v) >= 1e3 ? `$${(v/1e3).toFixed(0)}K` : fmt.currency(v),
+    };
 
-        const isHSAAccount = (accountName) => {
-            return accountName && accountName.toUpperCase().includes('HEALTH SAVINGS');
-        };
+    const classifyTransaction = (action, amount, accountName) => {
+      if (isHSA(accountName)) return 'HSA';
+      const a = action.toUpperCase();
+      if (/MARGIN INTEREST|WIRE TRANSFER|ELECTRONIC FUNDS|FEE/.test(a)) return 'Cash';
+      if (/CONTRIBUTION/.test(a)) return 'Buy';
+      if (/REINVESTMENT/.test(a)) return 'Reinvestment';
+      if (/DIVIDEND/.test(a)) return 'Dividend';
+      if (/YOU BOUGHT/.test(a) || (amount < 0 && !/DIVIDEND|REINVESTMENT|WIRE|DEBIT/.test(a))) return 'Buy';
+      if (/YOU SOLD/.test(a)) return 'Sell';
+      return 'Other';
+    };
 
-        const calculateCashBalance = (transactions, cutoffDate) => {
-            if (!transactions || transactions.length === 0) return STARTING_CASH_BALANCE;
-            let balance = STARTING_CASH_BALANCE;
-            const cutoff = new Date(cutoffDate);
-            transactions.forEach(trans => {
-                if (trans.type === 'HSA') return;
-                if (!trans.date) return;
-                const transDate = new Date(trans.date);
-                if (transDate > cutoff) return;
-                const amount = trans.amount || 0;
-                if (trans.type === 'Cash') balance += amount;
-                else if (trans.type === 'Buy' && amount < 0) balance += amount;
-                else if (trans.type === 'Sell' && amount > 0) balance += amount;
-                else if (trans.type === 'Dividend' && amount > 0) balance += amount;
-            });
-            return balance;
-        };
+    const calcCashBalance = (transactions, cutoff) => {
+      if (!transactions?.length) return STARTING_CASH;
+      const cutoffDate = new Date(cutoff);
+      return transactions.reduce((bal, t) => {
+        if (t.type === 'HSA' || !t.date || new Date(t.date) > cutoffDate) return bal;
+        const amt = t.amount || 0;
+        if (t.type === 'Cash') return bal + amt;
+        if (t.type === 'Buy' && amt < 0) return bal + amt;
+        if (t.type === 'Sell' && amt > 0) return bal + amt;
+        if (t.type === 'Dividend' && amt > 0) return bal + amt;
+        return bal;
+      }, STARTING_CASH);
+    };
 
-        const TrendingUp = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>;
-        const Calendar = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>;
-        const Upload = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>;
-        const Download = () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>;
-        const Trash = () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>;
-        const ChevronDown = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"></polyline></svg>;
-        const DollarSign = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>;
-        const BarChart3 = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 3v18h18"></path><path d="M18 17V9"></path><path d="M13 17V5"></path><path d="M8 17v-3"></path></svg>;
-        const PieChart = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path><path d="M22 12A10 10 0 0 0 12 2v10z"></path></svg>;
-        const ArrowUpRight = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="7" y1="17" x2="17" y2="7"></line><polyline points="7 7 17 7 17 17"></polyline></svg>;
+    const processHoldings = data => {
+      const accounts = {}, holdings = [];
+      let totalValue = 0, totalCost = 0;
+      data.forEach(r => {
+        const num = normalize(r.Account_Number);
+        if (!num) return;
+        const mv = parseFloat(r.Market_Value) || 0;
+        const cb = parseFloat(r.Cost_Basis) || 0;
+        holdings.push({
+          accountNumber: num, symbol: r.Symbol || '', description: r.Description || '',
+          assetClass: r.Asset_Class || '', quantity: parseFloat(r.Quantity) || 0,
+          price: parseFloat(r.Price) || 0, marketValue: mv, costBasis: cb,
+          gain: parseFloat(r.Unrealized_Gain_Loss) || 0
+        });
+        accounts[num] = accounts[num] || { value: 0, costBasis: 0, holdings: 0 };
+        accounts[num].value += mv;
+        accounts[num].costBasis += cb;
+        accounts[num].holdings++;
+        totalValue += mv;
+        totalCost += cb;
+      });
+      return { totalValue, totalCost, accounts, holdings };
+    };
 
-        // Simple waterfall chart component (no external dependencies)
-        const SimpleWaterfall = ({ data, formatCurrency, startValue }) => {
-            const maxValue = Math.max(...data.map(d => d.cumulative));
-            const minValue = Math.min(...data.map(d => d.start));
-            const range = maxValue - minValue;
+    const processTransactions = data => {
+      const names = {}, acctTx = {}, all = [];
+      let buys = 0, sells = 0, reinv = 0;
+      data.forEach(r => {
+        const num = normalize(r['Account Number']);
+        const name = r.Account || '';
+        const action = r.Action || '';
+        const amt = parseFloat(r.Amount) || 0;
+        if (num && name && !names[num]) names[num] = name;
+        const type = classifyTransaction(action, amt, name);
+        all.push({
+          date: r['Run Date'] || '', account: name, accountNumber: num,
+          action, symbol: r.Symbol || '', description: r.Description || '',
+          quantity: parseFloat(r.Quantity) || 0, price: parseFloat(r.Price) || 0,
+          amount: amt, type
+        });
+        if (isHSA(name) || type === 'Cash') return;
+        acctTx[num] = acctTx[num] || { purchases: 0, sales: 0, reinvested: 0 };
+        const absAmt = Math.abs(amt);
+        if (/CONTRIBUTION/.test(action.toUpperCase())) { buys += absAmt; acctTx[num].purchases += absAmt; }
+        else if (/REINVESTMENT/.test(action.toUpperCase())) { reinv += absAmt; acctTx[num].reinvested += absAmt; }
+        else if (/YOU BOUGHT/.test(action.toUpperCase()) || (amt < 0 && !/DIVIDEND|REINVESTMENT/.test(action.toUpperCase()))) { buys += absAmt; acctTx[num].purchases += absAmt; }
+        else if (/YOU SOLD/.test(action.toUpperCase())) { sells += absAmt; acctTx[num].sales += absAmt; }
+      });
+      Object.values(acctTx).forEach(a => a.net = a.purchases + a.reinvested - a.sales);
+      return { names, acctTx, all, purchases: buys, sales: sells, reinvested: reinv, net: buys + reinv - sells };
+    };
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // ICONS - Minimal SVG components
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    const Icon = ({ d, size = 18, className = '' }) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        {Array.isArray(d) ? d.map((p, i) => <path key={i} d={p} />) : <path d={d} />}
+      </svg>
+    );
+    const Icons = {
+      chart: () => <Icon d={['M3 3v18h18', 'M18 17V9', 'M13 17V5', 'M8 17v-3']} />,
+      calendar: () => <Icon d={['M8 2v4', 'M16 2v4', 'M3 10h18', 'M5 4h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z']} />,
+      upload: () => <Icon d={['M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4', 'M17 8l-5-5-5 5', 'M12 3v12']} />,
+      download: () => <Icon d={['M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4', 'M7 10l5 5 5-5', 'M12 15V3']} />,
+      trash: () => <Icon d={['M3 6h18', 'M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2']} />,
+      sun: () => <Icon d={['M12 1v2', 'M12 21v2', 'M4.22 4.22l1.42 1.42', 'M18.36 18.36l1.42 1.42', 'M1 12h2', 'M21 12h2', 'M4.22 19.78l1.42-1.42', 'M18.36 5.64l1.42-1.42', 'M12 17a5 5 0 100-10 5 5 0 000 10z']} />,
+      moon: () => <Icon d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />,
+      chevron: () => <Icon d="M6 9l6 6 6-6" />,
+      plus: () => <Icon d={['M12 5v14', 'M5 12h14']} />,
+      minus: () => <Icon d="M5 12h14" />,
+      arrowUp: () => <Icon d={['M12 19V5', 'M5 12l7-7 7 7']} />,
+      arrowDown: () => <Icon d={['M12 5v14', 'M19 12l-7 7-7-7']} />,
+    };
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // UI COMPONENTS
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    const Card = ({ children, className = '', hover = false }) => (
+      <div className={`bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-card ${hover ? 'hover:shadow-card-hover transition-shadow' : ''} ${className}`}>
+        {children}
+      </div>
+    );
+
+    const Stat = ({ label, value, sub, accent = false, trend }) => (
+      <div className={`p-5 ${accent ? 'bg-gradient-to-br from-accent/5 to-accent/10 dark:from-accent/10 dark:to-accent/20 border-accent/20' : ''}`}>
+        <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">{label}</div>
+        <div className={`text-2xl font-semibold tabular-nums ${accent ? 'text-accent' : 'text-gray-900 dark:text-white'}`}>{value}</div>
+        {sub && <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{sub}</div>}
+        {trend !== undefined && (
+          <div className={`inline-flex items-center gap-1 mt-2 text-sm font-medium ${trend >= 0 ? 'text-success' : 'text-danger'}`}>
+            {trend >= 0 ? <Icons.arrowUp /> : <Icons.arrowDown />}
+            {fmt.percent(trend)}
+          </div>
+        )}
+      </div>
+    );
+
+    const Tabs = ({ tabs, active, onChange }) => (
+      <div className="flex border-b border-gray-200 dark:border-gray-700">
+        {tabs.map(t => (
+          <button key={t.id} onClick={() => onChange(t.id)}
+            className={`px-5 py-3 text-sm font-medium transition-colors relative ${active === t.id ? 'text-accent' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}>
+            <span className="flex items-center gap-2">{t.icon}{t.label}</span>
+            {active === t.id && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent" />}
+          </button>
+        ))}
+      </div>
+    );
+
+    const SubTabs = ({ tabs, active, onChange }) => (
+      <div className="flex gap-1 p-1 bg-gray-100 dark:bg-gray-800 rounded-lg w-fit">
+        {tabs.map(t => (
+          <button key={t} onClick={() => onChange(t)}
+            className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${active === t ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}>
+            {t}
+          </button>
+        ))}
+      </div>
+    );
+
+    const Badge = ({ children, variant = 'default' }) => {
+      const styles = {
+        default: 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300',
+        success: 'bg-success/10 text-success',
+        danger: 'bg-danger/10 text-danger',
+        accent: 'bg-accent/10 text-accent',
+      };
+      return <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${styles[variant]}`}>{children}</span>;
+    };
+
+    const Button = ({ children, onClick, variant = 'default', size = 'md', icon }) => {
+      const base = 'inline-flex items-center justify-center gap-2 font-medium rounded-lg transition-all';
+      const variants = {
+        default: 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700',
+        primary: 'bg-accent text-white hover:bg-accent-dark',
+        danger: 'bg-danger/10 text-danger hover:bg-danger/20 border border-danger/20',
+      };
+      const sizes = { sm: 'px-3 py-1.5 text-sm', md: 'px-4 py-2 text-sm' };
+      return <button onClick={onClick} className={`${base} ${variants[variant]} ${sizes[size]}`}>{icon}{children}</button>;
+    };
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // WATERFALL CHART - Clean, readable performance bridge visualization
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    const WaterfallChart = ({ data }) => {
+      const { min, max, range } = useMemo(() => {
+        const vals = data.flatMap(d => [d.start, d.end]);
+        const min = Math.min(...vals);
+        const max = Math.max(...vals);
+        return { min, max, range: max - min };
+      }, [data]);
+
+      const toY = v => ((v - min) / range) * 100;
+
+      return (
+        <div className="h-80 flex items-end justify-between gap-3 px-2 py-4">
+          {data.map((item, i) => {
+            const isAnchor = item.type === 'anchor';
+            const bottom = toY(Math.min(item.start, item.end));
+            const height = Math.abs(toY(item.end) - toY(item.start));
+            const isPositive = item.value >= 0;
 
             return (
-                <div className="w-full h-96 flex items-end justify-around gap-2 px-4">
-                    {data.map((item, idx) => {
-                        const isAnchor = item.type === 'anchor';
-                        const height = isAnchor ? ((item.end - minValue) / range) * 100 : (Math.abs(item.value) / range) * 100;
-                        const bottom = isAnchor ? 0 : ((item.start - minValue) / range) * 100;
-
-                        return (
-                            <div key={idx} className="flex-1 flex flex-col items-center justify-end h-full">
-                                <div className="text-xs text-slate-400 mb-2 text-center font-semibold">
-                                    {formatCurrency(item.value)}
-                                </div>
-                                <div className="relative w-full" style={{ height: '80%' }}>
-                                    <div 
-                                        className="absolute w-full rounded-t transition-all hover:opacity-80"
-                                        style={{ 
-                                            height: `${height}%`,
-                                            bottom: `${bottom}%`,
-                                            backgroundColor: item.fill
-                                        }}
-                                    />
-                                </div>
-                                <div className="text-xs text-slate-300 mt-2 text-center font-medium">
-                                    {item.name}
-                                </div>
-                            </div>
-                        );
-                    })}
+              <div key={i} className="flex-1 flex flex-col items-center h-full group">
+                <div className="text-xs font-medium tabular-nums mb-2 text-center transition-colors group-hover:text-gray-900 dark:group-hover:text-white text-gray-500 dark:text-gray-400">
+                  {item.value >= 0 ? '+' : ''}{fmt.compact(item.value)}
                 </div>
+                <div className="relative flex-1 w-full">
+                  <div 
+                    className={`absolute w-full rounded-sm transition-all duration-300 ${isAnchor ? 'bg-accent' : isPositive ? 'bg-success hover:bg-success-dark' : 'bg-danger hover:bg-danger-dark'}`}
+                    style={{ bottom: `${bottom}%`, height: `${Math.max(height, 2)}%` }}
+                  />
+                  {!isAnchor && i > 0 && (
+                    <div className="absolute w-full border-t border-dashed border-gray-300 dark:border-gray-600"
+                      style={{ bottom: `${toY(item.start)}%` }} />
+                  )}
+                </div>
+                <div className="text-xs text-gray-500 dark:text-gray-400 mt-3 text-center font-medium leading-tight">
+                  {item.name}
+                </div>
+              </div>
             );
-        };
+          })}
+        </div>
+      );
+    };
 
-        const PortfolioDashboard = () => {
-            const [activeTab, setActiveTab] = useState('alltime');
-            const [subTab, setSubTab] = useState('byaccount');
-            const [showImport, setShowImport] = useState(false);
-            const [portfolioData, setPortfolioData] = useState(null);
-            const [uploadedFiles, setUploadedFiles] = useState({ '2024': [], '2025': [], 'transactions': [] });
-            const [transactionFilter, setTransactionFilter] = useState('All');
+    // ═══════════════════════════════════════════════════════════════════════════
+    // DATA TABLE - Reusable table component
+    // ═══════════════════════════════════════════════════════════════════════════
 
-            useEffect(() => {
-                const saved = localStorage.getItem('portfolioData');
-                if (saved) {
-                    try { setPortfolioData(JSON.parse(saved)); } 
-                    catch (e) { console.error('Failed to parse saved data', e); }
-                }
-            }, []);
+    const Table = ({ columns, data, maxHeight = '400px' }) => (
+      <div className="overflow-auto" style={{ maxHeight }}>
+        <table className="w-full text-sm">
+          <thead className="sticky top-0 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+            <tr>
+              {columns.map((col, i) => (
+                <th key={i} className={`px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 ${col.align === 'right' ? 'text-right' : 'text-left'}`}>
+                  {col.header}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+            {data.map((row, i) => (
+              <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                {columns.map((col, j) => (
+                  <td key={j} className={`px-4 py-3 ${col.align === 'right' ? 'text-right tabular-nums' : ''} ${col.mono ? 'font-mono text-xs' : ''}`}>
+                    {col.render ? col.render(row[col.key], row) : row[col.key]}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
 
-            useEffect(() => {
-                if (portfolioData) {
-                    localStorage.setItem('portfolioData', JSON.stringify(portfolioData));
-                }
-            }, [portfolioData]);
+    // ═══════════════════════════════════════════════════════════════════════════
+    // MAIN APPLICATION
+    // ═══════════════════════════════════════════════════════════════════════════
 
-            const parseCSV = (file) => {
-                return new Promise((resolve, reject) => {
-                    Papa.parse(file, {
-                        header: true,
-                        skipEmptyLines: true,
-                        complete: (results) => resolve(results.data),
-                        error: (error) => reject(error)
-                    });
-                });
-            };
+    const App = () => {
+      const [dark, setDark] = useState(() => localStorage.getItem('theme') === 'dark');
+      const [tab, setTab] = useState('alltime');
+      const [subTab, setSubTab] = useState('Performance Bridge');
+      const [data, setData] = useState(() => {
+        try { return JSON.parse(localStorage.getItem('portfolioData')); } catch { return null; }
+      });
+      const [importOpen, setImportOpen] = useState(false);
+      const [files, setFiles] = useState({ h2024: [], h2025: [], trans: [] });
+      const [txFilter, setTxFilter] = useState('All');
 
-            const processHoldingsCSV = async (file) => {
-                const data = await parseCSV(file);
-                const accountsByNumber = {};
-                const allHoldings = [];
-                let totalValue = 0;
-                let totalCostBasis = 0;
+      useEffect(() => {
+        document.documentElement.classList.toggle('dark', dark);
+        localStorage.setItem('theme', dark ? 'dark' : 'light');
+      }, [dark]);
 
-                data.forEach(row => {
-                    const accountNum = normalizeAccountNumber(row.Account_Number);
-                    if (!accountNum) return;
-                    const marketValue = parseFloat(row.Market_Value) || 0;
-                    const costBasis = parseFloat(row.Cost_Basis) || 0;
-                    const quantity = parseFloat(row.Quantity) || 0;
-                    const price = parseFloat(row.Price) || 0;
+      useEffect(() => {
+        if (data) localStorage.setItem('portfolioData', JSON.stringify(data));
+      }, [data]);
 
-                    allHoldings.push({
-                        accountNumber: accountNum,
-                        assetClass: row.Asset_Class || '',
-                        symbol: row.Symbol || '',
-                        description: row.Description || '',
-                        quantity, price, marketValue, costBasis,
-                        unrealizedGainLoss: parseFloat(row.Unrealized_Gain_Loss) || 0
-                    });
+      const parseCSV = file => new Promise((res, rej) => Papa.parse(file, { header: true, skipEmptyLines: true, complete: r => res(r.data), error: rej }));
 
-                    if (!accountsByNumber[accountNum]) {
-                        accountsByNumber[accountNum] = { value: 0, costBasis: 0, holdings: 0 };
-                    }
-                    accountsByNumber[accountNum].value += marketValue;
-                    accountsByNumber[accountNum].costBasis += costBasis;
-                    accountsByNumber[accountNum].holdings += 1;
-                    totalValue += marketValue;
-                    totalCostBasis += costBasis;
-                });
-
-                return { totalValue, totalCostBasis, accountsByNumber, allHoldings };
-            };
-
-            const processTransactionsCSV = async (file) => {
-                const data = await parseCSV(file);
-                const accountNames = {};
-                const accountTransactions = {};
-                const allTransactions = [];
-                let purchases = 0, sales = 0, dividendsReinvested = 0;
-
-                data.forEach(row => {
-                    const accountNum = normalizeAccountNumber(row['Account Number']);
-                    const accountName = row.Account || '';
-                    const action = (row.Action || '').toUpperCase();
-                    const amount = parseFloat(row.Amount) || 0;
-
-                    if (accountNum && accountName && !accountNames[accountNum]) {
-                        accountNames[accountNum] = accountName;
-                    }
-
-                    let type = 'Other';
-                    if (isHSAAccount(accountName)) type = 'HSA';
-                    else if (action.includes('MARGIN INTEREST') || action.includes('WIRE TRANSFER') || action.includes('ELECTRONIC FUNDS TRANSFER') || action.includes('FEE')) type = 'Cash';
-                    else if (action.includes('CONTRIBUTION')) type = 'Buy';
-                    else if (action.includes('REINVESTMENT')) type = 'Reinvestment';
-                    else if (action.includes('DIVIDEND')) type = 'Dividend';
-                    else if (action.includes('YOU BOUGHT') || (amount < 0 && !action.includes('DIVIDEND') && !action.includes('REINVESTMENT') && !action.includes('WIRE') && !action.includes('DEBIT'))) type = 'Buy';
-                    else if (action.includes('YOU SOLD')) type = 'Sell';
-
-                    allTransactions.push({
-                        date: row['Run Date'] || '', account: accountName, accountNumber: accountNum,
-                        action: row.Action || '', symbol: row.Symbol || '', description: row.Description || '',
-                        quantity: parseFloat(row.Quantity) || 0, price: parseFloat(row.Price) || 0,
-                        amount: amount, type: type
-                    });
-
-                    if (isHSAAccount(accountName) || type === 'Cash') return;
-
-                    if (accountNum && !accountTransactions[accountNum]) {
-                        accountTransactions[accountNum] = { purchases: 0, sales: 0, dividendsReinvested: 0, netInvested: 0 };
-                    }
-
-                    if (action.includes('CONTRIBUTION')) {
-                        const contributionAmount = Math.abs(amount);
-                        purchases += contributionAmount;
-                        if (accountNum) accountTransactions[accountNum].purchases += contributionAmount;
-                    } else if (action.includes('REINVESTMENT')) {
-                        const reinvAmount = Math.abs(amount);
-                        dividendsReinvested += reinvAmount;
-                        if (accountNum) accountTransactions[accountNum].dividendsReinvested += reinvAmount;
-                    } else if (action.includes('YOU BOUGHT') || (amount < 0 && !action.includes('DIVIDEND') && !action.includes('REINVESTMENT'))) {
-                        const purchaseAmount = Math.abs(amount);
-                        purchases += purchaseAmount;
-                        if (accountNum) accountTransactions[accountNum].purchases += purchaseAmount;
-                    } else if (action.includes('YOU SOLD')) {
-                        const saleAmount = Math.abs(amount);
-                        sales += saleAmount;
-                        if (accountNum) accountTransactions[accountNum].sales += saleAmount;
-                    }
-                });
-
-                Object.keys(accountTransactions).forEach(accountNum => {
-                    const acct = accountTransactions[accountNum];
-                    acct.netInvested = acct.purchases + acct.dividendsReinvested - acct.sales;
-                });
-
+      const handleUpload = useCallback(async (e, type) => {
+        const fileList = Array.from(e.target.files);
+        if (!fileList.length) return;
+        try {
+          for (const file of fileList) {
+            setFiles(f => ({ ...f, [type]: [...f[type], file.name] }));
+            if (type === 'h2024' || type === 'h2025') {
+              const h = processHoldings(await parseCSV(file));
+              const key = type === 'h2024' ? 'holdings2024' : 'holdings2025';
+              setData(d => {
+                const prev = d?.[key] || { totalValue: 0, totalCost: 0, accounts: {}, holdings: [] };
                 return {
-                    accountNames, accountTransactions, allTransactions,
-                    purchases, sales, dividendsReinvested,
-                    netInvested: purchases + dividendsReinvested - sales
+                  ...d,
+                  [key]: {
+                    totalValue: prev.totalValue + h.totalValue,
+                    totalCost: prev.totalCost + h.totalCost,
+                    accounts: { ...prev.accounts, ...h.accounts },
+                    holdings: [...prev.holdings, ...h.holdings]
+                  }
                 };
-            };
-
-            const handleFileUpload = async (event, type) => {
-                const files = Array.from(event.target.files);
-                if (!files || files.length === 0) return;
-
-                try {
-                    for (const file of files) {
-                        setUploadedFiles(prev => ({ ...prev, [type]: [...prev[type], file.name] }));
-
-                        if (type === '2024') {
-                            const holdings2024 = await processHoldingsCSV(file);
-                            setPortfolioData(prev => {
-                                const filteredAccounts = {}, filteredHoldings = [];
-                                let filteredValue = 0, filteredCostBasis = 0;
-                                Object.entries(holdings2024.accountsByNumber).forEach(([accountNum, data]) => {
-                                    filteredAccounts[accountNum] = data;
-                                    filteredValue += data.value;
-                                    filteredCostBasis += data.costBasis;
-                                });
-                                holdings2024.allHoldings.forEach(holding => filteredHoldings.push(holding));
-                                return {
-                                    ...prev,
-                                    holdings2024: {
-                                        totalValue: (prev?.holdings2024?.totalValue || 0) + filteredValue,
-                                        totalCostBasis: (prev?.holdings2024?.totalCostBasis || 0) + filteredCostBasis,
-                                        accountsByNumber: { ...(prev?.holdings2024?.accountsByNumber || {}), ...filteredAccounts },
-                                        allHoldings: [...(prev?.holdings2024?.allHoldings || []), ...filteredHoldings]
-                                    }
-                                };
-                            });
-                        } else if (type === '2025') {
-                            const holdings2025 = await processHoldingsCSV(file);
-                            setPortfolioData(prev => {
-                                const filteredAccounts = {}, filteredHoldings = [];
-                                let filteredValue = 0, filteredCostBasis = 0;
-                                Object.entries(holdings2025.accountsByNumber).forEach(([accountNum, data]) => {
-                                    filteredAccounts[accountNum] = data;
-                                    filteredValue += data.value;
-                                    filteredCostBasis += data.costBasis;
-                                });
-                                holdings2025.allHoldings.forEach(holding => filteredHoldings.push(holding));
-                                return {
-                                    ...prev,
-                                    holdings2025: {
-                                        totalValue: (prev?.holdings2025?.totalValue || 0) + filteredValue,
-                                        totalCostBasis: (prev?.holdings2025?.totalCostBasis || 0) + filteredCostBasis,
-                                        accountsByNumber: { ...(prev?.holdings2025?.accountsByNumber || {}), ...filteredAccounts },
-                                        allHoldings: [...(prev?.holdings2025?.allHoldings || []), ...filteredHoldings]
-                                    }
-                                };
-                            });
-                        } else if (type === 'transactions') {
-                            const trans = await processTransactionsCSV(file);
-                            setPortfolioData(prev => ({
-                                ...prev,
-                                accountNames: { ...(prev?.accountNames || {}), ...trans.accountNames },
-                                accountTransactions: { ...(prev?.accountTransactions || {}), ...trans.accountTransactions },
-                                allTransactions: [...(prev?.allTransactions || []), ...trans.allTransactions],
-                                transactions2025: {
-                                    purchases: (prev?.transactions2025?.purchases || 0) + trans.purchases,
-                                    sales: (prev?.transactions2025?.sales || 0) + trans.sales,
-                                    dividendsReinvested: (prev?.transactions2025?.dividendsReinvested || 0) + trans.dividendsReinvested,
-                                    netInvested: (prev?.transactions2025?.netInvested || 0) + trans.netInvested
-                                }
-                            }));
-                        }
-                    }
-                    event.target.value = '';
-                } catch (error) {
-                    alert(`Error processing ${type} files: ${error.message}`);
+              });
+            } else {
+              const t = processTransactions(await parseCSV(file));
+              setData(d => ({
+                ...d,
+                accountNames: { ...d?.accountNames, ...t.names },
+                accountTx: { ...d?.accountTx, ...t.acctTx },
+                transactions: [...(d?.transactions || []), ...t.all],
+                tx2025: {
+                  purchases: (d?.tx2025?.purchases || 0) + t.purchases,
+                  sales: (d?.tx2025?.sales || 0) + t.sales,
+                  reinvested: (d?.tx2025?.reinvested || 0) + t.reinvested,
+                  net: (d?.tx2025?.net || 0) + t.net
                 }
-            };
+              }));
+            }
+          }
+          e.target.value = '';
+        } catch (err) {
+          alert(`Error: ${err.message}`);
+        }
+      }, []);
 
-            const handleExport = () => {
-                const dataStr = JSON.stringify(portfolioData, null, 2);
-                const dataBlob = new Blob([dataStr], { type: 'application/json' });
-                const url = URL.createObjectURL(dataBlob);
-                const link = document.createElement('a');
-                link.href = url;
-                link.download = `portfolio-data-${new Date().toISOString().split('T')[0]}.json`;
-                link.click();
-                URL.revokeObjectURL(url);
-            };
+      const clearData = useCallback(() => {
+        if (confirm('Clear all portfolio data? This cannot be undone.')) {
+          localStorage.removeItem('portfolioData');
+          setData(null);
+          setFiles({ h2024: [], h2025: [], trans: [] });
+        }
+      }, []);
 
-            const handleClearData = () => {
-                if (confirm('Are you sure you want to clear all data? This cannot be undone.')) {
-                    localStorage.removeItem('portfolioData');
-                    setPortfolioData(null);
-                    setUploadedFiles({ '2024': [], '2025': [], 'transactions': [] });
-                }
-            };
+      const exportData = useCallback(() => {
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `portfolio-${new Date().toISOString().slice(0, 10)}.json`;
+        a.click();
+      }, [data]);
 
-            const formatCurrency = (value) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(value);
-            const formatPercent = (value) => `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
-            const formatNumber = (value) => Math.abs(value) >= 1000 ? (value / 1000).toFixed(1) + 'K' : value.toFixed(0);
+      // ═══════════════════════════════════════════════════════════════════════
+      // COMPUTED VALUES
+      // ═══════════════════════════════════════════════════════════════════════
 
-            const filteredTransactions = portfolioData?.allTransactions?.filter(trans => {
-                if (transactionFilter === 'All') return true;
-                return trans.type === transactionFilter;
-            }) || [];
+      const computed = useMemo(() => {
+        if (!data?.holdings2025) return null;
 
-            const getNonHSAAccounts = (accountsByNumber) => {
-                if (!accountsByNumber) return {};
-                const filtered = {};
-                Object.entries(accountsByNumber).forEach(([accountNum, data]) => {
-                    const accountName = portfolioData?.accountNames?.[accountNum];
-                    if (!isHSAAccount(accountName)) filtered[accountNum] = data;
-                });
-                return filtered;
-            };
-
-            const getNonHSAHoldings = (allHoldings) => {
-                if (!allHoldings) return [];
-                return allHoldings.filter(holding => {
-                    const accountName = portfolioData?.accountNames?.[holding.accountNumber];
-                    return !isHSAAccount(accountName);
-                });
-            };
-
-            const cashBalance2024 = calculateCashBalance(portfolioData?.allTransactions, '2024-12-31');
-            const cashBalance2025 = calculateCashBalance(portfolioData?.allTransactions, '2025-12-31');
-
-            const nonHSAHoldings2025 = getNonHSAHoldings(portfolioData?.holdings2025?.allHoldings);
-            const stocksValue2025 = nonHSAHoldings2025.reduce((sum, h) => sum + h.marketValue, 0);
-            const currentValue = stocksValue2025 + cashBalance2025;
-            const costBasis = nonHSAHoldings2025.reduce((sum, h) => sum + h.costBasis, 0);
-            const unrealizedGain = currentValue - costBasis;
-            const unrealizedGainPct = costBasis > 0 ? (unrealizedGain / costBasis) * 100 : 0;
-
-            const nonHSAHoldings2024 = getNonHSAHoldings(portfolioData?.holdings2024?.allHoldings);
-            const stocksValue2024 = nonHSAHoldings2024.reduce((sum, h) => sum + h.marketValue, 0);
-            const startValue = stocksValue2024 + cashBalance2024;
-            const endValue = currentValue;
-            const netInflows = portfolioData?.transactions2025?.netInvested || 0;
-            const marketGain = endValue - (startValue + netInflows);
-            const marketGainPct = (startValue + netInflows) > 0 ? (marketGain / (startValue + netInflows)) * 100 : 0;
-            const totalChange = endValue - startValue;
-            const totalChangePct = startValue > 0 ? (totalChange / startValue) * 100 : 0;
-
-            const hasData = portfolioData && portfolioData.holdings2025;
-
-            const nonHSAAccounts2025 = getNonHSAAccounts(portfolioData?.holdings2025?.accountsByNumber);
-            const nonHSAAccounts2024 = getNonHSAAccounts(portfolioData?.holdings2024?.accountsByNumber);
-
-            const calculateWaterfallData = () => {
-                if (!portfolioData?.allTransactions) return [];
-                
-                const start2024 = startValue;
-                const end2025 = endValue;
-                
-                const cashFlowTransactions = portfolioData.allTransactions.filter(t => 
-                    t.type === 'Cash' && t.date && new Date(t.date).getFullYear() === 2025
-                );
-                const netCashFlow = cashFlowTransactions.reduce((sum, t) => sum + (t.amount || 0), 0);
-                
-                const dividendTransactions = portfolioData.allTransactions.filter(t => 
-                    t.type === 'Dividend' && t.date && new Date(t.date).getFullYear() === 2025
-                );
-                const totalDividends = dividendTransactions.reduce((sum, t) => sum + (t.amount || 0), 0);
-                
-                const netStockPurchases = (portfolioData.transactions2025?.purchases || 0) - (portfolioData.transactions2025?.sales || 0);
-                const marketAppreciation = end2025 - (start2024 + netCashFlow + totalDividends + netStockPurchases);
-                
-                let cumulative = 0;
-                const data = [];
-                
-                data.push({ name: '2024 Start', value: start2024, start: 0, end: start2024, cumulative: start2024, type: 'anchor', fill: '#3b82f6' });
-                cumulative = start2024;
-                
-                data.push({ name: 'Net Cash Flow', value: netCashFlow, start: cumulative, end: cumulative + netCashFlow, cumulative: cumulative + netCashFlow, type: 'step', fill: netCashFlow >= 0 ? '#10b981' : '#ef4444' });
-                cumulative += netCashFlow;
-                
-                data.push({ name: 'Dividends', value: totalDividends, start: cumulative, end: cumulative + totalDividends, cumulative: cumulative + totalDividends, type: 'step', fill: totalDividends >= 0 ? '#10b981' : '#ef4444' });
-                cumulative += totalDividends;
-                
-                data.push({ name: 'Net Purchases', value: netStockPurchases, start: cumulative, end: cumulative + netStockPurchases, cumulative: cumulative + netStockPurchases, type: 'step', fill: netStockPurchases >= 0 ? '#10b981' : '#ef4444' });
-                cumulative += netStockPurchases;
-                
-                data.push({ name: 'Market Gain', value: marketAppreciation, start: cumulative, end: cumulative + marketAppreciation, cumulative: cumulative + marketAppreciation, type: 'step', fill: marketAppreciation >= 0 ? '#10b981' : '#ef4444' });
-                cumulative += marketAppreciation;
-                
-                data.push({ name: '2025 End', value: end2025, start: 0, end: end2025, cumulative: end2025, type: 'anchor', fill: '#3b82f6' });
-                
-                return data;
-            };
-
-            const waterfallData = calculateWaterfallData();
-
-            return (
-                <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100">
-                    <div className="border-b border-slate-800 bg-slate-950/50 backdrop-blur-sm sticky top-0 z-50">
-                        <div className="max-w-7xl mx-auto px-8 py-4 flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-cyan-400 rounded-lg flex items-center justify-center">
-                                    <span className="text-slate-950 font-bold text-xl">₿</span>
-                                </div>
-                                <h1 className="text-2xl font-bold">Portfolio Tracker</h1>
-                            </div>
-                            <div className="flex items-center gap-3">
-                                <span className="text-xs text-emerald-400 bg-emerald-400/10 px-3 py-1 rounded-full border border-emerald-400/30">
-                                    🔒 LOCAL STORAGE ONLY
-                                </span>
-                                {hasData && (
-                                    <>
-                                        <button onClick={handleExport} className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition-all border border-slate-700">
-                                            <Download />Export
-                                        </button>
-                                        <button onClick={handleClearData} className="flex items-center gap-2 px-4 py-2 bg-red-900/20 hover:bg-red-900/30 text-red-400 rounded-lg transition-all border border-red-800/50">
-                                            <Trash />Clear Data
-                                        </button>
-                                    </>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="max-w-7xl mx-auto p-8">
-                        <div className="mb-8">
-                            <button onClick={() => setShowImport(!showImport)} className="w-full bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-2xl p-6 hover:border-slate-700 transition-all flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <Upload /><span className="font-semibold text-lg">Import Data</span>
-                                </div>
-                                <div className={`transform transition-transform ${showImport ? 'rotate-180' : ''}`}><ChevronDown /></div>
-                            </button>
-
-                            {showImport && (
-                                <div className="mt-4 bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-2xl p-6 space-y-4 animate-fadeIn">
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                        <div>
-                                            <label className="block text-sm font-medium text-slate-400 mb-2">
-                                                Holdings 2024 CSV
-                                                {uploadedFiles['2024'].length > 0 && (
-                                                    <span className="ml-2 text-xs text-emerald-400">({uploadedFiles['2024'].length} file{uploadedFiles['2024'].length > 1 ? 's' : ''})</span>
-                                                )}
-                                            </label>
-                                            <input type="file" accept=".csv" multiple onChange={(e) => handleFileUpload(e, '2024')} className="block w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-emerald-900/20 file:text-emerald-400 hover:file:bg-emerald-900/30 file:cursor-pointer cursor-pointer" />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-medium text-slate-400 mb-2">
-                                                Holdings 2025 CSV
-                                                {uploadedFiles['2025'].length > 0 && (
-                                                    <span className="ml-2 text-xs text-emerald-400">({uploadedFiles['2025'].length} file{uploadedFiles['2025'].length > 1 ? 's' : ''})</span>
-                                                )}
-                                            </label>
-                                            <input type="file" accept=".csv" multiple onChange={(e) => handleFileUpload(e, '2025')} className="block w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-emerald-900/20 file:text-emerald-400 hover:file:bg-emerald-900/30 file:cursor-pointer cursor-pointer" />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-medium text-slate-400 mb-2">
-                                                Transactions 2025 CSV
-                                                {uploadedFiles['transactions'].length > 0 && (
-                                                    <span className="ml-2 text-xs text-emerald-400">({uploadedFiles['transactions'].length} file{uploadedFiles['transactions'].length > 1 ? 's' : ''})</span>
-                                                )}
-                                            </label>
-                                            <input type="file" accept=".csv" multiple onChange={(e) => handleFileUpload(e, 'transactions')} className="block w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-emerald-900/20 file:text-emerald-400 hover:file:bg-emerald-900/30 file:cursor-pointer cursor-pointer" />
-                                        </div>
-                                    </div>
-                                    <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
-                                        <div className="text-sm text-slate-400 mb-2">
-                                            <span className="font-semibold text-slate-300">Cash/Margin Balance Tracking:</span> Starting balance is set to <span className="text-cyan-400 font-mono">{formatCurrency(STARTING_CASH_BALANCE)}</span>
-                                        </div>
-                                        <div className="text-xs text-slate-500">
-                                            "Cash" type includes: margin interest, wire transfers, electronic funds transfers. To change starting balance: Edit <code className="bg-slate-900 px-2 py-1 rounded text-cyan-400">STARTING_CASH_BALANCE</code> at the top of the code.
-                                        </div>
-                                    </div>
-                                    <p className="text-xs text-slate-500">
-                                        Select one or multiple CSV files. <span className="text-amber-400">HSA accounts excluded from calculations.</span> Cash balance tracks all deposits, withdrawals, and margin interest automatically.
-                                    </p>
-                                </div>
-                            )}
-                        </div>
-
-                        {!hasData ? (
-                            <div className="text-center py-20">
-                                <div className="text-6xl mb-4">📊</div>
-                                <h2 className="text-2xl font-bold mb-2 text-slate-300">No Data Yet</h2>
-                                <p className="text-slate-500">Upload your CSV files to get started</p>
-                            </div>
-                        ) : (
-                            <>
-                                <div className="mb-6 bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-xl p-4">
-                                    <div className="flex items-center justify-between">
-                                        <div>
-                                            <div className="text-xs text-slate-500 mb-1">CALCULATED CASH/MARGIN BALANCE</div>
-                                            <div className="flex items-center gap-4">
-                                                <div>
-                                                    <span className="text-xs text-slate-400">2024: </span>
-                                                    <span className={`font-semibold ${cashBalance2024 >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                                        {formatCurrency(cashBalance2024)}
-                                                    </span>
-                                                </div>
-                                                <div>
-                                                    <span className="text-xs text-slate-400">2025: </span>
-                                                    <span className={`font-semibold ${cashBalance2025 >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                                        {formatCurrency(cashBalance2025)}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div className="text-right">
-                                            <div className="text-xs text-slate-500">
-                                                {cashBalance2025 >= 0 ? '💰 Cash Position' : '📊 Margin Loan'}
-                                            </div>
-                                            <div className="text-xs text-slate-600 mt-1">Incl. deposits, withdrawals, interest</div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="flex gap-4 mb-8 border-b border-slate-800 pb-1">
-                                    <button onClick={() => setActiveTab('alltime')} className={`px-6 py-3 font-semibold text-lg transition-all duration-300 relative ${activeTab === 'alltime' ? 'text-emerald-400' : 'text-slate-500 hover:text-slate-300'}`}>
-                                        <span className="inline-flex items-center gap-2"><TrendingUp />All-Time Performance</span>
-                                        {activeTab === 'alltime' && <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-400 to-cyan-400 rounded-full" />}
-                                    </button>
-                                    <button onClick={() => setActiveTab('2025')} className={`px-6 py-3 font-semibold text-lg transition-all duration-300 relative ${activeTab === '2025' ? 'text-cyan-400' : 'text-slate-500 hover:text-slate-300'}`}>
-                                        <span className="inline-flex items-center gap-2"><Calendar />2025 Year-in-Review</span>
-                                        {activeTab === '2025' && <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-400 to-blue-400 rounded-full" />}
-                                    </button>
-                                </div>
-
-                                {activeTab === 'alltime' && (
-                                    <div className="space-y-6 animate-fadeIn">
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                            <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-2xl p-6 hover:border-emerald-500/50 transition-all duration-300">
-                                                <div className="flex items-center justify-between mb-2">
-                                                    <span className="text-slate-400 text-sm font-medium">Total Portfolio Value</span><DollarSign />
-                                                </div>
-                                                <div className="text-3xl font-bold text-emerald-400">{formatCurrency(currentValue)}</div>
-                                                <div className="text-xs text-slate-500 mt-1">
-                                                    Stocks: {formatCurrency(stocksValue2025)} | Cash: {formatCurrency(cashBalance2025)}
-                                                </div>
-                                            </div>
-                                            <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-2xl p-6 hover:border-blue-500/50 transition-all duration-300">
-                                                <div className="flex items-center justify-between mb-2">
-                                                    <span className="text-slate-400 text-sm font-medium">Total Cost Basis</span><BarChart3 />
-                                                </div>
-                                                <div className="text-3xl font-bold text-blue-400">{formatCurrency(costBasis)}</div>
-                                                <div className="text-xs text-slate-500 mt-1">Stocks only (excl. HSA)</div>
-                                            </div>
-                                            <div className="bg-gradient-to-br from-emerald-900/30 to-cyan-900/30 backdrop-blur-sm border border-emerald-500/50 rounded-2xl p-6 shadow-lg shadow-emerald-500/20">
-                                                <div className="flex items-center justify-between mb-2">
-                                                    <span className="text-slate-300 text-sm font-medium">Lifetime Unrealized Gain</span><ArrowUpRight />
-                                                </div>
-                                                <div className="text-3xl font-bold text-emerald-400">{formatCurrency(unrealizedGain)}</div>
-                                                <div className="text-sm text-emerald-400 mt-2 font-semibold">{formatPercent(unrealizedGainPct)}</div>
-                                            </div>
-                                        </div>
-
-                                        <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-2xl p-8">
-                                            <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
-                                                <PieChart />Holdings Breakdown
-                                                <span className="text-xs text-slate-500 font-normal">(HSA excluded)</span>
-                                            </h2>
-                                            <div className="space-y-4">
-                                                {Math.abs(cashBalance2025) > 100 && (
-                                                    <div className="bg-slate-800/50 rounded-xl p-5 border border-slate-700 hover:border-slate-600 transition-all">
-                                                        <div className="flex justify-between items-start mb-3">
-                                                            <div>
-                                                                <h3 className="font-semibold text-lg text-slate-200">
-                                                                    {cashBalance2025 >= 0 ? '💵 Cash Balance' : '📊 Margin Loan'}
-                                                                </h3>
-                                                                <p className="text-sm text-slate-500">Deposits, withdrawals, interest</p>
-                                                            </div>
-                                                            <div className="text-right">
-                                                                <div className={`text-xl font-bold ${cashBalance2025 >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                                                    {formatCurrency(Math.abs(cashBalance2025))}
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                        <div className="relative h-2 bg-slate-700/50 rounded-full overflow-hidden">
-                                                            <div className={`absolute h-full rounded-full transition-all duration-500 ${cashBalance2025 >= 0 ? 'bg-gradient-to-r from-emerald-400 to-cyan-400' : 'bg-gradient-to-r from-red-500 to-orange-500'}`} style={{ width: `${Math.min(Math.abs(cashBalance2025) / Math.abs(currentValue) * 100, 100)}%` }} />
-                                                        </div>
-                                                        <div className="text-xs text-slate-500 mt-2">
-                                                            {cashBalance2025 >= 0 
-                                                                ? `${(cashBalance2025 / currentValue * 100).toFixed(1)}% of portfolio`
-                                                                : `Leveraged position`
-                                                            }
-                                                        </div>
-                                                    </div>
-                                                )}
-
-                                                {Object.entries(nonHSAAccounts2025).map(([accountNum, account]) => {
-                                                    const accountName = portfolioData.accountNames?.[accountNum] || accountNum;
-                                                    const accountGain = account.value - account.costBasis;
-                                                    const accountGainPct = account.costBasis > 0 ? (accountGain / account.costBasis) * 100 : 0;
-                                                    const percentage = stocksValue2025 > 0 ? (account.value / stocksValue2025) * 100 : 0;
-                                                    if (account.value === 0) return null;
-
-                                                    return (
-                                                        <div key={accountNum} className="bg-slate-800/50 rounded-xl p-5 border border-slate-700 hover:border-slate-600 transition-all">
-                                                            <div className="flex justify-between items-start mb-3">
-                                                                <div>
-                                                                    <h3 className="font-semibold text-lg text-slate-200">{accountName}</h3>
-                                                                    <p className="text-sm text-slate-500">{account.holdings} holdings · {accountNum}</p>
-                                                                </div>
-                                                                <div className="text-right">
-                                                                    <div className="text-xl font-bold text-slate-100">{formatCurrency(account.value)}</div>
-                                                                    <div className={`text-sm font-semibold ${accountGain >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                                                        {formatCurrency(accountGain)} ({formatPercent(accountGainPct)})
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                            <div className="relative h-2 bg-slate-700/50 rounded-full overflow-hidden">
-                                                                <div className="absolute h-full bg-gradient-to-r from-emerald-400 to-cyan-400 rounded-full transition-all duration-500" style={{ width: `${percentage}%` }} />
-                                                            </div>
-                                                            <div className="text-xs text-slate-500 mt-2">{percentage.toFixed(1)}% of stock holdings</div>
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {activeTab === '2025' && (
-                                    <div className="space-y-6 animate-fadeIn">
-                                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
-                                            <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-xl p-4">
-                                                <div className="text-slate-400 text-xs font-medium mb-1">TOTAL PORTFOLIO VALUE</div>
-                                                <div className="text-xl font-bold text-slate-200">{formatCurrency(endValue)}</div>
-                                                <div className="text-xs text-emerald-400 mt-1">▲ {formatPercent(totalChangePct)} vs 2024</div>
-                                            </div>
-                                            <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-xl p-4">
-                                                <div className="text-slate-400 text-xs font-medium mb-1">2024 STARTING VALUE</div>
-                                                <div className="text-xl font-bold text-slate-200">{formatCurrency(startValue)}</div>
-                                                <div className="text-xs text-slate-500 mt-1">Stocks + Cash</div>
-                                            </div>
-                                            <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-xl p-4">
-                                                <div className="text-slate-400 text-xs font-medium mb-1">NET INVESTED '25</div>
-                                                <div className="text-xl font-bold text-slate-200">{formatCurrency(netInflows)}</div>
-                                                <div className="text-xs text-slate-500">Buys + Reinv - Sells</div>
-                                            </div>
-                                            <div className="bg-gradient-to-br from-emerald-900/30 to-cyan-900/30 backdrop-blur-sm border border-emerald-500/50 rounded-xl p-4 shadow-lg shadow-emerald-500/20">
-                                                <div className="text-slate-300 text-xs font-medium mb-1">TRUE MARKET GAIN</div>
-                                                <div className="text-xl font-bold text-emerald-400">{formatCurrency(marketGain)}</div>
-                                                <div className="text-xs text-emerald-400 font-semibold">ROIC: {formatPercent(marketGainPct)}</div>
-                                            </div>
-                                            <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-xl p-4">
-                                                <div className="text-slate-400 text-xs font-medium mb-1">2025 PURCHASES</div>
-                                                <div className="text-xl font-bold text-slate-200">{formatCurrency(portfolioData.transactions2025?.purchases || 0)}</div>
-                                            </div>
-                                            <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-xl p-4">
-                                                <div className="text-slate-400 text-xs font-medium mb-1">2025 SALES</div>
-                                                <div className="text-xl font-bold text-slate-200">{formatCurrency(portfolioData.transactions2025?.sales || 0)}</div>
-                                            </div>
-                                            <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-xl p-4">
-                                                <div className="text-slate-400 text-xs font-medium mb-1">DIVIDENDS REINVESTED</div>
-                                                <div className="text-xl font-bold text-slate-200">{formatCurrency(portfolioData.transactions2025?.dividendsReinvested || 0)}</div>
-                                            </div>
-                                        </div>
-
-                                        <div className="flex gap-2 bg-slate-900/50 p-2 rounded-xl border border-slate-800">
-                                            <button onClick={() => setSubTab('performance')} className={`px-4 py-2 rounded-lg font-medium transition-all ${subTab === 'performance' ? 'bg-slate-800 text-slate-100' : 'text-slate-400 hover:text-slate-200'}`}>
-                                                Performance Bridge
-                                            </button>
-                                            <button onClick={() => setSubTab('byaccount')} className={`px-4 py-2 rounded-lg font-medium transition-all ${subTab === 'byaccount' ? 'bg-slate-800 text-slate-100' : 'text-slate-400 hover:text-slate-200'}`}>
-                                                By Account
-                                            </button>
-                                            <button onClick={() => setSubTab('allholdings')} className={`px-4 py-2 rounded-lg font-medium transition-all ${subTab === 'allholdings' ? 'bg-slate-800 text-slate-100' : 'text-slate-400 hover:text-slate-200'}`}>
-                                                All Holdings
-                                            </button>
-                                            <button onClick={() => setSubTab('transactions')} className={`px-4 py-2 rounded-lg font-medium transition-all ${subTab === 'transactions' ? 'bg-slate-800 text-slate-100' : 'text-slate-400 hover:text-slate-200'}`}>
-                                                Transactions
-                                            </button>
-                                        </div>
-
-                                        {subTab === 'performance' && (
-                                            <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-2xl p-8 animate-fadeIn">
-                                                <h2 className="text-xl font-bold mb-6">
-                                                    2025 Performance Bridge
-                                                    <span className="text-xs text-slate-500 font-normal ml-2">How did we get from 2024 to 2025?</span>
-                                                </h2>
-                                                
-                                                <div className="grid grid-cols-4 gap-4 mb-8">
-                                                    {waterfallData.filter(d => d.type === 'step').map((step, idx) => (
-                                                        <div key={idx} className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
-                                                            <div className="text-xs text-slate-400 mb-1">{step.name.toUpperCase()}</div>
-                                                            <div className={`text-xl font-bold ${step.value >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                                                {formatCurrency(step.value)}
-                                                            </div>
-                                                            <div className="text-xs text-slate-500 mt-1">
-                                                                {step.value >= 0 ? '▲' : '▼'} {Math.abs((step.value / startValue) * 100).toFixed(1)}%
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-
-                                                <div className="bg-slate-800/30 rounded-lg p-6 border border-slate-700">
-                                                    <SimpleWaterfall data={waterfallData} formatCurrency={formatCurrency} startValue={startValue} />
-                                                </div>
-
-                                                <div className="mt-6 bg-slate-800/30 rounded-lg p-4 border border-slate-700">
-                                                    <h3 className="text-sm font-semibold text-slate-300 mb-2">📊 Understanding the Performance Bridge</h3>
-                                                    <div className="text-xs text-slate-400 space-y-1">
-                                                        <p>• <strong>Net Cash Flow:</strong> Deposits, withdrawals, and margin interest (Cash type transactions)</p>
-                                                        <p>• <strong>Dividends:</strong> Cash dividends received (not reinvested)</p>
-                                                        <p>• <strong>Net Purchases:</strong> Money deployed into stocks (purchases - sales)</p>
-                                                        <p>• <strong>Market Gain:</strong> Portfolio appreciation from price changes</p>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-                            </>
-                        )}
-                    </div>
-                </div>
-            );
+        const filterHSA = (accounts, holdings) => {
+          const names = data.accountNames || {};
+          const filteredAccounts = {};
+          Object.entries(accounts || {}).forEach(([num, acc]) => {
+            if (!isHSA(names[num])) filteredAccounts[num] = acc;
+          });
+          const filteredHoldings = (holdings || []).filter(h => !isHSA(names[h.accountNumber]));
+          return { accounts: filteredAccounts, holdings: filteredHoldings };
         };
 
-        ReactDOM.render(<PortfolioDashboard />, document.getElementById('root'));
-    </script>
+        const h24 = filterHSA(data.holdings2024?.accounts, data.holdings2024?.holdings);
+        const h25 = filterHSA(data.holdings2025?.accounts, data.holdings2025?.holdings);
+
+        const cash2024 = calcCashBalance(data.transactions, '2024-12-31');
+        const cash2025 = calcCashBalance(data.transactions, '2025-12-31');
+        
+        const stocks2024 = h24.holdings.reduce((s, h) => s + h.marketValue, 0);
+        const stocks2025 = h25.holdings.reduce((s, h) => s + h.marketValue, 0);
+        const cost2025 = h25.holdings.reduce((s, h) => s + h.costBasis, 0);
+
+        const startVal = stocks2024 + cash2024;
+        const endVal = stocks2025 + cash2025;
+        const netFlow = data.tx2025?.net || 0;
+        const marketGain = endVal - (startVal + netFlow);
+        const marketGainPct = (startVal + netFlow) > 0 ? (marketGain / (startVal + netFlow)) * 100 : 0;
+        const unrealized = endVal - cost2025;
+        const unrealizedPct = cost2025 > 0 ? (unrealized / cost2025) * 100 : 0;
+        const totalChange = endVal - startVal;
+        const totalChangePct = startVal > 0 ? (totalChange / startVal) * 100 : 0;
+
+        // Waterfall
+        const tx = data.transactions || [];
+        const tx2025 = tx.filter(t => t.date && new Date(t.date).getFullYear() === 2025);
+        const cashFlow = tx2025.filter(t => t.type === 'Cash').reduce((s, t) => s + (t.amount || 0), 0);
+        const dividends = tx2025.filter(t => t.type === 'Dividend').reduce((s, t) => s + (t.amount || 0), 0);
+        const netPurchases = -(data.tx2025?.purchases || 0) + (data.tx2025?.sales || 0);
+        const mktGain = endVal - (startVal + cashFlow + dividends + netPurchases);
+
+        const waterfall = [
+          { name: '2024 Start', value: startVal, start: 0, end: startVal, type: 'anchor' },
+          { name: 'Cash Flow', value: cashFlow, start: startVal, end: startVal + cashFlow, type: 'step' },
+          { name: 'Dividends', value: dividends, start: startVal + cashFlow, end: startVal + cashFlow + dividends, type: 'step' },
+          { name: 'Net Purchases', value: netPurchases, start: startVal + cashFlow + dividends, end: startVal + cashFlow + dividends + netPurchases, type: 'step' },
+          { name: 'Market Gain', value: mktGain, start: startVal + cashFlow + dividends + netPurchases, end: endVal, type: 'step' },
+          { name: '2025 End', value: endVal, start: 0, end: endVal, type: 'anchor' },
+        ];
+
+        // By Account ROIC
+        const accountROIC = Object.entries(h25.accounts).map(([num, acc]) => {
+          const name = data.accountNames?.[num] || num;
+          const start = h24.accounts[num]?.value || 0;
+          const netIn = data.accountTx?.[num]?.net || 0;
+          const roicBase = start + netIn;
+          const gain = acc.value - roicBase;
+          const roic = roicBase > 0 ? (gain / roicBase) * 100 : 0;
+          return { num, name, start, end: acc.value, netIn, gain, roic, costBasis: acc.costBasis, holdings: acc.holdings };
+        }).filter(a => a.end > 0);
+
+        return {
+          cash2024, cash2025, stocks2024, stocks2025, cost2025,
+          startVal, endVal, netFlow, marketGain, marketGainPct,
+          unrealized, unrealizedPct, totalChange, totalChangePct,
+          waterfall, accountROIC,
+          accounts24: h24.accounts, accounts25: h25.accounts,
+          holdings24: h24.holdings, holdings25: h25.holdings
+        };
+      }, [data]);
+
+      const filteredTx = useMemo(() => {
+        const all = data?.transactions || [];
+        return txFilter === 'All' ? all : all.filter(t => t.type === txFilter);
+      }, [data, txFilter]);
+
+      const hasData = !!computed;
+
+      // ═══════════════════════════════════════════════════════════════════════
+      // RENDER
+      // ═══════════════════════════════════════════════════════════════════════
+
+      return (
+        <div className="min-h-screen">
+          {/* Header */}
+          <header className="sticky top-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800">
+            <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center">
+                  <span className="text-white font-bold text-sm">P</span>
+                </div>
+                <h1 className="text-lg font-semibold text-gray-900 dark:text-white">Portfolio Analytics</h1>
+                <Badge variant="accent">Local Storage</Badge>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button onClick={() => setDark(!dark)} icon={dark ? <Icons.sun /> : <Icons.moon />} size="sm">
+                  {dark ? 'Light' : 'Dark'}
+                </Button>
+                {hasData && (
+                  <>
+                    <Button onClick={exportData} icon={<Icons.download />} size="sm">Export</Button>
+                    <Button onClick={clearData} variant="danger" icon={<Icons.trash />} size="sm">Clear</Button>
+                  </>
+                )}
+              </div>
+            </div>
+          </header>
+
+          <main className="max-w-6xl mx-auto px-6 py-8 space-y-6">
+            {/* Import Section */}
+            <Card>
+              <button onClick={() => setImportOpen(!importOpen)} className="w-full px-5 py-4 flex items-center justify-between text-left hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors rounded-xl">
+                <div className="flex items-center gap-3">
+                  <Icons.upload />
+                  <span className="font-medium text-gray-900 dark:text-white">Import Data</span>
+                  {(files.h2024.length + files.h2025.length + files.trans.length) > 0 && (
+                    <Badge variant="success">{files.h2024.length + files.h2025.length + files.trans.length} files</Badge>
+                  )}
+                </div>
+                <div className={`transition-transform ${importOpen ? 'rotate-180' : ''}`}><Icons.chevron /></div>
+              </button>
+              {importOpen && (
+                <div className="px-5 pb-5 border-t border-gray-100 dark:border-gray-700 pt-4 animate-fadeUp">
+                  <div className="grid md:grid-cols-3 gap-4">
+                    {[
+                      { key: 'h2024', label: 'Holdings 2024', desc: 'Year-end 2024 positions' },
+                      { key: 'h2025', label: 'Holdings 2025', desc: 'Current positions' },
+                      { key: 'trans', label: 'Transactions 2025', desc: 'YTD transactions' }
+                    ].map(({ key, label, desc }) => (
+                      <div key={key} className="space-y-2">
+                        <label className="block">
+                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{label}</span>
+                          {files[key].length > 0 && <Badge variant="success" className="ml-2">{files[key].length}</Badge>}
+                          <span className="block text-xs text-gray-500 dark:text-gray-400 mt-0.5">{desc}</span>
+                        </label>
+                        <input type="file" accept=".csv" multiple onChange={e => handleUpload(e, key)}
+                          className="block w-full text-sm text-gray-500 dark:text-gray-400" />
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                    <p className="text-xs text-amber-800 dark:text-amber-200">
+                      <strong>Note:</strong> HSA accounts are automatically excluded. Cash balance starts at {fmt.currencyFull(STARTING_CASH)} and tracks deposits, withdrawals, and margin interest.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </Card>
+
+            {!hasData ? (
+              <Card className="py-20 text-center">
+                <div className="text-5xl mb-4">📊</div>
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">No Data Yet</h2>
+                <p className="text-gray-500 dark:text-gray-400">Upload your CSV files above to get started</p>
+              </Card>
+            ) : (
+              <>
+                {/* Cash Balance Summary */}
+                <Card className="px-5 py-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Cash / Margin Balance</div>
+                      <div className="flex items-center gap-6">
+                        <div>
+                          <span className="text-sm text-gray-500 dark:text-gray-400">2024: </span>
+                          <span className={`font-semibold tabular-nums ${computed.cash2024 >= 0 ? 'text-success' : 'text-danger'}`}>
+                            {fmt.currencyFull(computed.cash2024)}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-sm text-gray-500 dark:text-gray-400">2025: </span>
+                          <span className={`font-semibold tabular-nums ${computed.cash2025 >= 0 ? 'text-success' : 'text-danger'}`}>
+                            {fmt.currencyFull(computed.cash2025)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <Badge variant={computed.cash2025 >= 0 ? 'success' : 'danger'}>
+                      {computed.cash2025 >= 0 ? '💰 Cash' : '📊 Margin'}
+                    </Badge>
+                  </div>
+                </Card>
+
+                {/* Main Tabs */}
+                <Card>
+                  <Tabs
+                    tabs={[
+                      { id: 'alltime', label: 'All-Time Performance', icon: <Icons.chart /> },
+                      { id: '2025', label: '2025 Year-in-Review', icon: <Icons.calendar /> }
+                    ]}
+                    active={tab}
+                    onChange={setTab}
+                  />
+
+                  <div className="p-6">
+                    {tab === 'alltime' && (
+                      <div className="space-y-6 animate-fadeUp">
+                        {/* Stats Grid */}
+                        <div className="grid md:grid-cols-3 gap-4">
+                          <Card hover><Stat label="Total Portfolio Value" value={fmt.currency(computed.endVal)} sub={`Stocks: ${fmt.compact(computed.stocks2025)} · Cash: ${fmt.compact(computed.cash2025)}`} /></Card>
+                          <Card hover><Stat label="Total Cost Basis" value={fmt.currency(computed.cost2025)} sub="Stocks only (excl. HSA)" /></Card>
+                          <Card hover className="border-accent/30"><Stat label="Lifetime Unrealized Gain" value={fmt.currency(computed.unrealized)} trend={computed.unrealizedPct} accent /></Card>
+                        </div>
+
+                        {/* Holdings Breakdown */}
+                        <Card>
+                          <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700">
+                            <h2 className="font-semibold text-gray-900 dark:text-white">Holdings Breakdown</h2>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">HSA accounts excluded</p>
+                          </div>
+                          <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                            {Math.abs(computed.cash2025) > 100 && (
+                              <div className="px-5 py-4 flex items-center justify-between">
+                                <div>
+                                  <div className="font-medium text-gray-900 dark:text-white">
+                                    {computed.cash2025 >= 0 ? '💵 Cash Balance' : '📊 Margin Loan'}
+                                  </div>
+                                  <div className="text-xs text-gray-500 dark:text-gray-400">Deposits, withdrawals, interest</div>
+                                </div>
+                                <div className="text-right">
+                                  <div className={`text-lg font-semibold tabular-nums ${computed.cash2025 >= 0 ? 'text-success' : 'text-danger'}`}>
+                                    {fmt.currencyFull(Math.abs(computed.cash2025))}
+                                  </div>
+                                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                                    {Math.abs(computed.cash2025 / computed.endVal * 100).toFixed(1)}% of portfolio
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                            {Object.entries(computed.accounts25).map(([num, acc]) => {
+                              const name = data.accountNames?.[num] || num;
+                              const gain = acc.value - acc.costBasis;
+                              const gainPct = acc.costBasis > 0 ? (gain / acc.costBasis) * 100 : 0;
+                              const pct = computed.stocks2025 > 0 ? (acc.value / computed.stocks2025) * 100 : 0;
+                              if (acc.value === 0) return null;
+                              return (
+                                <div key={num} className="px-5 py-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                                  <div>
+                                    <div className="font-medium text-gray-900 dark:text-white">{name}</div>
+                                    <div className="text-xs text-gray-500 dark:text-gray-400">{acc.holdings} holdings · {num}</div>
+                                  </div>
+                                  <div className="text-right">
+                                    <div className="text-lg font-semibold tabular-nums text-gray-900 dark:text-white">{fmt.currencyFull(acc.value)}</div>
+                                    <div className={`text-sm tabular-nums ${gain >= 0 ? 'text-success' : 'text-danger'}`}>
+                                      {fmt.currencyFull(gain)} ({fmt.percent(gainPct)})
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </Card>
+                      </div>
+                    )}
+
+                    {tab === '2025' && (
+                      <div className="space-y-6 animate-fadeUp">
+                        {/* Summary Stats */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+                          <Card><Stat label="Portfolio Value" value={fmt.compact(computed.endVal)} sub={fmt.percent(computed.totalChangePct) + ' vs 2024'} /></Card>
+                          <Card><Stat label="2024 Start" value={fmt.compact(computed.startVal)} sub="Stocks + Cash" /></Card>
+                          <Card><Stat label="Net Invested" value={fmt.compact(computed.netFlow)} sub="Buys + Reinv - Sells" /></Card>
+                          <Card className="border-success/30"><Stat label="Market Gain" value={fmt.compact(computed.marketGain)} sub={`ROIC: ${fmt.percent(computed.marketGainPct)}`} accent /></Card>
+                          <Card><Stat label="Purchases" value={fmt.compact(data.tx2025?.purchases || 0)} /></Card>
+                          <Card><Stat label="Sales" value={fmt.compact(data.tx2025?.sales || 0)} /></Card>
+                          <Card><Stat label="Reinvested" value={fmt.compact(data.tx2025?.reinvested || 0)} /></Card>
+                        </div>
+
+                        {/* Sub Navigation */}
+                        <SubTabs tabs={['Performance Bridge', 'By Account', 'Holdings', 'Transactions']} active={subTab} onChange={setSubTab} />
+
+                        {/* Sub Tab Content */}
+                        {subTab === 'Performance Bridge' && (
+                          <Card>
+                            <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700">
+                              <h2 className="font-semibold text-gray-900 dark:text-white">2025 Performance Bridge</h2>
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">How did we get from 2024 to 2025?</p>
+                            </div>
+                            <div className="p-5">
+                              <div className="grid grid-cols-4 gap-3 mb-6">
+                                {computed.waterfall.filter(d => d.type === 'step').map((s, i) => (
+                                  <Card key={i} className="p-4">
+                                    <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">{s.name}</div>
+                                    <div className={`text-xl font-semibold tabular-nums mt-1 ${s.value >= 0 ? 'text-success' : 'text-danger'}`}>
+                                      {s.value >= 0 ? '+' : ''}{fmt.compact(s.value)}
+                                    </div>
+                                    <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                                      {s.value >= 0 ? '▲' : '▼'} {Math.abs((s.value / computed.startVal) * 100).toFixed(1)}%
+                                    </div>
+                                  </Card>
+                                ))}
+                              </div>
+                              <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4">
+                                <WaterfallChart data={computed.waterfall} />
+                              </div>
+                              <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+                                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Understanding the Bridge</h3>
+                                <div className="text-xs text-gray-500 dark:text-gray-400 space-y-1">
+                                  <p><strong>Cash Flow:</strong> Deposits, withdrawals, and margin interest</p>
+                                  <p><strong>Dividends:</strong> Cash dividends received (not reinvested)</p>
+                                  <p><strong>Net Purchases:</strong> Money deployed into stocks (purchases - sales)</p>
+                                  <p><strong>Market Gain:</strong> Portfolio appreciation from price changes</p>
+                                </div>
+                              </div>
+                            </div>
+                          </Card>
+                        )}
+
+                        {subTab === 'By Account' && (
+                          <Card>
+                            <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700">
+                              <h2 className="font-semibold text-gray-900 dark:text-white">Account Performance & ROIC</h2>
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Return on invested capital by account</p>
+                            </div>
+                            <Table
+                              columns={[
+                                { key: 'name', header: 'Account' },
+                                { key: 'start', header: '2024 Value', align: 'right', render: v => fmt.currencyFull(v) },
+                                { key: 'netIn', header: 'Net Invested', align: 'right', render: v => fmt.currencyFull(v) },
+                                { key: 'end', header: '2025 Value', align: 'right', render: v => fmt.currencyFull(v) },
+                                { key: 'gain', header: 'Gain', align: 'right', render: v => <span className={v >= 0 ? 'text-success' : 'text-danger'}>{fmt.currencyFull(v)}</span> },
+                                { key: 'roic', header: 'ROIC', align: 'right', render: v => <span className={`font-semibold ${v >= 0 ? 'text-success' : 'text-danger'}`}>{fmt.percent(v)}</span> },
+                              ]}
+                              data={computed.accountROIC}
+                            />
+                          </Card>
+                        )}
+
+                        {subTab === 'Holdings' && (
+                          <Card>
+                            <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700">
+                              <h2 className="font-semibold text-gray-900 dark:text-white">All Holdings</h2>
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{computed.holdings25.length} positions (HSA excluded)</p>
+                            </div>
+                            <Table
+                              maxHeight="500px"
+                              columns={[
+                                { key: 'symbol', header: 'Symbol', render: (v, r) => <div><div className="font-medium">{v || '—'}</div><div className="text-xs text-gray-400 truncate max-w-48">{r.description}</div></div> },
+                                { key: 'accountNumber', header: 'Account', render: v => <span className="text-xs text-gray-500">{data.accountNames?.[v] || v}</span> },
+                                { key: 'quantity', header: 'Qty', align: 'right', mono: true, render: v => v.toLocaleString() },
+                                { key: 'price', header: 'Price', align: 'right', render: v => fmt.currencyFull(v) },
+                                { key: 'marketValue', header: 'Value', align: 'right', render: v => fmt.currencyFull(v) },
+                                { key: 'costBasis', header: 'Cost', align: 'right', render: v => fmt.currencyFull(v) },
+                                { key: 'gain', header: 'Gain', align: 'right', render: v => <span className={v >= 0 ? 'text-success' : 'text-danger'}>{fmt.currencyFull(v)}</span> },
+                              ]}
+                              data={computed.holdings25}
+                            />
+                          </Card>
+                        )}
+
+                        {subTab === 'Transactions' && (
+                          <Card>
+                            <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+                              <div>
+                                <h2 className="font-semibold text-gray-900 dark:text-white">Transaction History</h2>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{filteredTx.length} transactions</p>
+                              </div>
+                              <select value={txFilter} onChange={e => setTxFilter(e.target.value)}
+                                className="text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200">
+                                {['All', 'Buy', 'Sell', 'Dividend', 'Reinvestment', 'Cash', 'HSA', 'Other'].map(t => <option key={t}>{t}</option>)}
+                              </select>
+                            </div>
+                            <Table
+                              maxHeight="500px"
+                              columns={[
+                                { key: 'date', header: 'Date', mono: true },
+                                { key: 'type', header: 'Type', render: v => {
+                                  const colors = { Buy: 'accent', Sell: 'danger', Dividend: 'success', Reinvestment: 'success', Cash: 'default', HSA: 'default', Other: 'default' };
+                                  return <Badge variant={colors[v] || 'default'}>{v}</Badge>;
+                                }},
+                                { key: 'symbol', header: 'Symbol', render: v => v || '—' },
+                                { key: 'action', header: 'Action', render: v => <span className="text-xs text-gray-500 truncate max-w-64 block">{v}</span> },
+                                { key: 'amount', header: 'Amount', align: 'right', render: v => <span className={v >= 0 ? 'text-success' : 'text-danger'}>{fmt.currencyFull(v)}</span> },
+                              ]}
+                              data={filteredTx}
+                            />
+                          </Card>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </Card>
+              </>
+            )}
+          </main>
+
+          {/* Footer */}
+          <footer className="border-t border-gray-200 dark:border-gray-800 mt-12">
+            <div className="max-w-6xl mx-auto px-6 py-6 text-center text-xs text-gray-400 dark:text-gray-500">
+              All data stored locally in your browser. No data is sent to any server.
+            </div>
+          </footer>
+        </div>
+      );
+    };
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
 </body>
 </html>
