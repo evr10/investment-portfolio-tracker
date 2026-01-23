@@ -84,9 +84,9 @@
       if (isHSA(accountName)) return 'HSA';
       const a = action.toUpperCase();
       if (/MARGIN INTEREST|WIRE TRANSFER|ELECTRONIC FUNDS|FEE/.test(a)) return 'Cash';
-      if (/CONTRIBUTION/.test(a)) return 'Buy';
+      if (/CONTRIBUTION|CONVERSION SHARES DEPOSITED/.test(a)) return 'Buy';
       if (/REINVESTMENT/.test(a)) return 'Reinvestment';
-      if (/DIVIDEND/.test(a)) return 'Dividend';
+      if (/DIVIDEND|LONG-TERM CAP GAIN|SHORT-TERM CAP GAIN/.test(a)) return 'Dividend';
       if (/YOU BOUGHT/.test(a) || (amount < 0 && !/DIVIDEND|REINVESTMENT|WIRE|DEBIT/.test(a))) return 'Buy';
       if (/YOU SOLD/.test(a)) return 'Sell';
       return 'Other';
@@ -138,6 +138,13 @@
         const name = r.Account || '';
         const action = r.Action || '';
         const amt = parseFloat(r.Amount) || 0;
+        const symbol = r.Symbol || '';
+        
+        // Skip disclaimer/footer rows (no symbol, no amount, no account)
+        if (!symbol && amt === 0 && !num) return;
+        // Skip rows that look like disclaimer text (long action text with no real data)
+        if (!symbol && amt === 0 && action.length > 50) return;
+        
         if (num && name && !names[num]) names[num] = name;
         const type = classifyTransaction(action, amt, name);
         all.push({
@@ -149,7 +156,7 @@
         if (isHSA(name) || type === 'Cash') return;
         acctTx[num] = acctTx[num] || { purchases: 0, sales: 0, reinvested: 0 };
         const absAmt = Math.abs(amt);
-        if (/CONTRIBUTION/.test(action.toUpperCase())) { buys += absAmt; acctTx[num].purchases += absAmt; }
+        if (/CONTRIBUTION|CONVERSION SHARES DEPOSITED/.test(action.toUpperCase())) { buys += absAmt; acctTx[num].purchases += absAmt; }
         else if (/REINVESTMENT/.test(action.toUpperCase())) { reinv += absAmt; acctTx[num].reinvested += absAmt; }
         else if (/YOU BOUGHT/.test(action.toUpperCase()) || (amt < 0 && !/DIVIDEND|REINVESTMENT/.test(action.toUpperCase()))) { buys += absAmt; acctTx[num].purchases += absAmt; }
         else if (/YOU SOLD/.test(action.toUpperCase())) { sells += absAmt; acctTx[num].sales += absAmt; }
