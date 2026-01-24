@@ -634,9 +634,6 @@
         // Core values: Net portfolio = stocks - margin loan (or + cash if positive)
         const startVal = stocks2023 + margin2023;
         const endVal = stocks2024 + margin2024;
-
-        const startVal = stocks2023 + cash2023;
-        const endVal = stocks2024 + cash2024;
         
         const tx = data.transactions || [];
         const tx2024 = tx.filter(t => t.date && new Date(t.date).getFullYear() === 2024 && t.type !== 'HSA');
