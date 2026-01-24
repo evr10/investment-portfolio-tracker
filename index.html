@@ -463,27 +463,18 @@
         const h24 = filterHSA(data.holdings2024?.accounts, data.holdings2024?.holdings);
         const h25 = filterHSA(data.holdings2025?.accounts, data.holdings2025?.holdings);
 
-        // SPAXX is a money market fund (cash equivalent) - extract it from holdings
-        const CASH_SYMBOLS = ['SPAXX', 'FDRXX', 'FZFXX', 'SPRXX', 'VMFXX', 'CORE**']; // Common money market symbols
-        const isCashHolding = (symbol) => CASH_SYMBOLS.some(cs => symbol?.toUpperCase().includes(cs.replace('*', '')));
+        // Calculate margin/cash position from transactions (negative = margin loan)
+        const margin2024 = calcCashBalance(data.transactions, '2024-12-31');
+        const margin2025 = calcCashBalance(data.transactions, '2025-12-31');
         
-        // Separate cash holdings from stock holdings
-        const cashHoldings2024 = h24.holdings.filter(h => isCashHolding(h.symbol));
-        const stockHoldings2024 = h24.holdings.filter(h => !isCashHolding(h.symbol));
-        const cashHoldings2025 = h25.holdings.filter(h => isCashHolding(h.symbol));
-        const stockHoldings2025 = h25.holdings.filter(h => !isCashHolding(h.symbol));
-        
-        // Cash position is the sum of all money market holdings
-        const cash2024 = cashHoldings2024.reduce((s, h) => s + h.marketValue, 0);
-        const cash2025 = cashHoldings2025.reduce((s, h) => s + h.marketValue, 0);
-        
-        const stocks2024 = stockHoldings2024.reduce((s, h) => s + h.marketValue, 0);
-        const stocks2025 = stockHoldings2025.reduce((s, h) => s + h.marketValue, 0);
-        const cost2025 = stockHoldings2025.reduce((s, h) => s + h.costBasis, 0);
+        // All holdings are stocks (margin position is separate)
+        const stocks2024 = h24.holdings.reduce((s, h) => s + h.marketValue, 0);
+        const stocks2025 = h25.holdings.reduce((s, h) => s + h.marketValue, 0);
+        const cost2025 = h25.holdings.reduce((s, h) => s + h.costBasis, 0);
 
-        // Core values
-        const startVal = stocks2024 + cash2024;
-        const endVal = stocks2025 + cash2025;
+        // Core values: Net portfolio = stocks - margin loan (or + cash if positive)
+        const startVal = stocks2024 + margin2024;
+        const endVal = stocks2025 + margin2025;
         
         // Get 2025 transactions
         const tx = data.transactions || [];
@@ -564,17 +555,17 @@
         }).filter(a => a.end > 0);
 
         // ═══════════════════════════════════════════════════════════════════
-        // HOLDINGS ANALYSIS - aggregate by symbol (exclude cash holdings)
+        // HOLDINGS ANALYSIS - aggregate by symbol
         // ═══════════════════════════════════════════════════════════════════
         const holdingsMap = {};
         
-        stockHoldings2024.forEach(h => {
+        h24.holdings.forEach(h => {
           const key = h.symbol || h.description;
           if (!holdingsMap[key]) holdingsMap[key] = { symbol: h.symbol, description: h.description, val2024: 0, val2025: 0, dividends: 0, bought: 0, sold: 0, reinvested: 0 };
           holdingsMap[key].val2024 += h.marketValue;
         });
         
-        stockHoldings2025.forEach(h => {
+        h25.holdings.forEach(h => {
           const key = h.symbol || h.description;
           if (!holdingsMap[key]) holdingsMap[key] = { symbol: h.symbol, description: h.description, val2024: 0, val2025: 0, dividends: 0, bought: 0, sold: 0, reinvested: 0 };
           holdingsMap[key].val2025 += h.marketValue;
@@ -582,7 +573,7 @@
         });
         
         tx2025.forEach(t => {
-          if (!t.symbol || isCashHolding(t.symbol)) return; // Skip cash holdings
+          if (!t.symbol) return;
           const key = t.symbol;
           if (!holdingsMap[key]) holdingsMap[key] = { symbol: t.symbol, description: t.description, val2024: 0, val2025: 0, dividends: 0, bought: 0, sold: 0, reinvested: 0 };
           const amt = Math.abs(t.amount || 0);
@@ -600,7 +591,7 @@
           .sort((a, b) => b.val2025 - a.val2025);
 
         return {
-          cash2024, cash2025, stocks2024, stocks2025, cost2025,
+          margin2024, margin2025, stocks2024, stocks2025, cost2025,
           startVal, endVal, 
           purchases, sales, reinvested, dividends, cashFlow,
           marketGain, marketGainPct,
@@ -631,21 +622,18 @@
         const h23 = filterHSA(data.holdings2023?.accounts, data.holdings2023?.holdings);
         const h24 = filterHSA(data.holdings2024?.accounts, data.holdings2024?.holdings);
 
-        // SPAXX is a money market fund (cash equivalent) - extract it from holdings
-        const CASH_SYMBOLS = ['SPAXX', 'FDRXX', 'FZFXX', 'SPRXX', 'VMFXX', 'CORE**'];
-        const isCashHolding = (symbol) => CASH_SYMBOLS.some(cs => symbol?.toUpperCase().includes(cs.replace('*', '')));
+        // Calculate margin/cash position from transactions (negative = margin loan)
+        const margin2023 = calcCashBalance(data.transactions, '2023-12-31');
+        const margin2024 = calcCashBalance(data.transactions, '2024-12-31');
         
-        const cashHoldings2023 = h23.holdings.filter(h => isCashHolding(h.symbol));
-        const stockHoldings2023 = h23.holdings.filter(h => !isCashHolding(h.symbol));
-        const cashHoldings2024 = h24.holdings.filter(h => isCashHolding(h.symbol));
-        const stockHoldings2024 = h24.holdings.filter(h => !isCashHolding(h.symbol));
-        
-        const cash2023 = cashHoldings2023.reduce((s, h) => s + h.marketValue, 0);
-        const cash2024 = cashHoldings2024.reduce((s, h) => s + h.marketValue, 0);
-        
-        const stocks2023 = stockHoldings2023.reduce((s, h) => s + h.marketValue, 0);
-        const stocks2024 = stockHoldings2024.reduce((s, h) => s + h.marketValue, 0);
-        const cost2024 = stockHoldings2024.reduce((s, h) => s + h.costBasis, 0);
+        // All holdings are stocks (margin position is separate)
+        const stocks2023 = h23.holdings.reduce((s, h) => s + h.marketValue, 0);
+        const stocks2024 = h24.holdings.reduce((s, h) => s + h.marketValue, 0);
+        const cost2024 = h24.holdings.reduce((s, h) => s + h.costBasis, 0);
+
+        // Core values: Net portfolio = stocks - margin loan (or + cash if positive)
+        const startVal = stocks2023 + margin2023;
+        const endVal = stocks2024 + margin2024;
 
         const startVal = stocks2023 + cash2023;
         const endVal = stocks2024 + cash2024;
@@ -708,16 +696,16 @@
           return { num, name, start: acctStart, end: acc.value, netIn, dividends: acctDividends, marketGain: acctMarketGain, roic, costBasis: acc.costBasis, holdings: acc.holdings };
         }).filter(a => a.end > 0);
 
-        // Holdings Analysis (exclude cash holdings)
+        // Holdings Analysis
         const holdingsMap = {};
         
-        stockHoldings2023.forEach(h => {
+        h23.holdings.forEach(h => {
           const key = h.symbol || h.description;
           if (!holdingsMap[key]) holdingsMap[key] = { symbol: h.symbol, description: h.description, val2023: 0, val2024: 0, dividends: 0, bought: 0, sold: 0, reinvested: 0 };
           holdingsMap[key].val2023 += h.marketValue;
         });
         
-        stockHoldings2024.forEach(h => {
+        h24.holdings.forEach(h => {
           const key = h.symbol || h.description;
           if (!holdingsMap[key]) holdingsMap[key] = { symbol: h.symbol, description: h.description, val2023: 0, val2024: 0, dividends: 0, bought: 0, sold: 0, reinvested: 0 };
           holdingsMap[key].val2024 += h.marketValue;
@@ -725,7 +713,7 @@
         });
         
         tx2024.forEach(t => {
-          if (!t.symbol || isCashHolding(t.symbol)) return; // Skip cash holdings
+          if (!t.symbol) return;
           const key = t.symbol;
           if (!holdingsMap[key]) holdingsMap[key] = { symbol: t.symbol, description: t.description, val2023: 0, val2024: 0, dividends: 0, bought: 0, sold: 0, reinvested: 0 };
           const amt = Math.abs(t.amount || 0);
@@ -743,7 +731,7 @@
           .sort((a, b) => b.val2024 - a.val2024);
 
         return {
-          cash2023, cash2024, stocks2023, stocks2024, cost2024,
+          margin2023, margin2024, stocks2023, stocks2024, cost2024,
           startVal, endVal, 
           purchases, sales, reinvested, dividends, cashFlow,
           marketGain, marketGainPct,
@@ -889,7 +877,7 @@
                       <div className="space-y-6 animate-fadeUp">
                         {/* Stats Grid */}
                         <div className="grid md:grid-cols-3 gap-4">
-                          <Card hover><Stat label="Total Portfolio Value" value={fmt.currency(computed.endVal)} sub={`Stocks: ${fmt.compact(computed.stocks2025)} · Cash: ${fmt.compact(computed.cash2025)}`} /></Card>
+                          <Card hover><Stat label="Total Portfolio Value" value={fmt.currency(computed.endVal)} sub={`Stocks: ${fmt.compact(computed.stocks2025)} · Margin: ${fmt.compact(Math.abs(computed.margin2025))}`} /></Card>
                           <Card hover><Stat label="Total Cost Basis" value={fmt.currency(computed.cost2025)} sub="Stocks only (excl. HSA)" /></Card>
                           <Card hover className="border-accent/30"><Stat label="Lifetime Unrealized Gain" value={fmt.currency(computed.unrealized)} trend={computed.unrealizedPct} accent /></Card>
                         </div>
@@ -901,20 +889,20 @@
                             <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">HSA accounts excluded</p>
                           </div>
                           <div className="divide-y divide-gray-100 dark:divide-gray-700">
-                            {Math.abs(computed.cash2025) > 100 && (
+                            {Math.abs(computed.margin2025) > 100 && (
                               <div className="px-5 py-4 flex items-center justify-between">
                                 <div>
                                   <div className="font-medium text-gray-900 dark:text-white">
-                                    {computed.cash2025 >= 0 ? '💵 Cash Balance' : '📊 Margin Loan'}
+                                    📊 Margin Loan
                                   </div>
-                                  <div className="text-xs text-gray-500 dark:text-gray-400">Deposits, withdrawals, interest</div>
+                                  <div className="text-xs text-gray-500 dark:text-gray-400">Based on transaction history</div>
                                 </div>
                                 <div className="text-right">
-                                  <div className={`text-lg font-semibold tabular-nums ${computed.cash2025 >= 0 ? 'text-success' : 'text-danger'}`}>
-                                    {fmt.currencyFull(Math.abs(computed.cash2025))}
+                                  <div className="text-lg font-semibold tabular-nums text-danger">
+                                    -{fmt.currencyFull(Math.abs(computed.margin2025))}
                                   </div>
                                   <div className="text-xs text-gray-500 dark:text-gray-400">
-                                    {Math.abs(computed.cash2025 / computed.endVal * 100).toFixed(1)}% of portfolio
+                                    {Math.abs(computed.margin2025 / computed.stocks2025 * 100).toFixed(1)}% of stocks
                                   </div>
                                 </div>
                               </div>
@@ -950,7 +938,7 @@
                         {/* Summary Stats */}
                         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
                           <Card><Stat label="2025 Value" value={fmt.compact(computed.endVal)} sub={fmt.percent(computed.totalChangePct) + ' vs 2024'} /></Card>
-                          <Card><Stat label="2024 Start" value={fmt.compact(computed.startVal)} sub="Stocks + Cash" /></Card>
+                          <Card><Stat label="2024 Start" value={fmt.compact(computed.startVal)} sub={`Stocks − Margin`} /></Card>
                           <Card><Stat label="Dividends" value={fmt.compact(computed.dividends)} sub="Cash received" /></Card>
                           <Card><Stat label="Net Invested" value={fmt.compact(computed.purchases + computed.reinvested - computed.sales)} sub="Buys + Reinv − Sells" /></Card>
                           <Card className="border-accent/30"><Stat label="Market Gain" value={fmt.compact(computed.marketGain)} sub={`ROIC: ${fmt.percent(computed.marketGainPct)}`} accent /></Card>
@@ -1130,7 +1118,7 @@
                         {/* Summary Stats */}
                         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
                           <Card><Stat label="2024 Value" value={fmt.compact(computed2024.endVal)} sub={fmt.percent(computed2024.totalChangePct) + ' vs 2023'} /></Card>
-                          <Card><Stat label="2023 Start" value={fmt.compact(computed2024.startVal)} sub="Stocks + Cash" /></Card>
+                          <Card><Stat label="2023 Start" value={fmt.compact(computed2024.startVal)} sub={`Stocks − Margin`} /></Card>
                           <Card><Stat label="Dividends" value={fmt.compact(computed2024.dividends)} sub="Cash received" /></Card>
                           <Card><Stat label="Net Invested" value={fmt.compact(computed2024.purchases + computed2024.reinvested - computed2024.sales)} sub="Buys + Reinv − Sells" /></Card>
                           <Card className="border-accent/30"><Stat label="Market Gain" value={fmt.compact(computed2024.marketGain)} sub={`ROIC: ${fmt.percent(computed2024.marketGainPct)}`} accent /></Card>
