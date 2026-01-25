@@ -938,7 +938,7 @@
                           <Card><Stat label="2024 Start" value={fmt.compact(computed.startVal)} sub={`Stocks − Margin`} /></Card>
                           <Card><Stat label="Dividends" value={fmt.compact(computed.dividends)} sub="Cash received" /></Card>
                           <Card><Stat label="Net Invested" value={fmt.compact(computed.purchases + computed.reinvested - computed.sales)} sub="Buys + Reinv − Sells" /></Card>
-                          <Card className="border-accent/30"><Stat label="Market Gain" value={fmt.compact(computed.marketGain)} sub={`ROIC: ${fmt.percent(computed.marketGainPct)}`} accent /></Card>
+                          <Card className="border-accent/30"><Stat label="Market Gain" value={fmt.compact(computed.marketGain)} sub={`Growth: ${fmt.percent((computed.marketGain / computed.startVal) * 100)}`} accent /></Card>
                           <Card><Stat label="Purchases" value={fmt.compact(computed.purchases)} /></Card>
                           <Card><Stat label="Sales" value={fmt.compact(computed.sales)} /></Card>
                         </div>
@@ -1015,8 +1015,8 @@
                         {subTab === 'By Account' && (
                           <Card>
                             <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700">
-                              <h2 className="font-semibold text-gray-900 dark:text-white">Account Performance & ROIC</h2>
-                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Return on invested capital by account</p>
+                              <h2 className="font-semibold text-gray-900 dark:text-white">Account Performance</h2>
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Growth by account (Market Gain / Start Value)</p>
                             </div>
                             <Table
                               columns={[
@@ -1026,7 +1026,7 @@
                                 { key: 'dividends', header: 'Dividends', align: 'right', render: v => <span className="text-success">{fmt.currencyFull(v)}</span>, footerRender: v => <span className="text-success">{fmt.currencyFull(v)}</span> },
                                 { key: 'marketGain', header: 'Market Gain', align: 'right', render: v => <span className={v >= 0 ? 'text-success' : 'text-danger'}>{fmt.currencyFull(v)}</span>, footerRender: v => <span className={v >= 0 ? 'text-success' : 'text-danger'}>{fmt.currencyFull(v)}</span> },
                                 { key: 'end', header: '2025 Value', align: 'right', render: v => <span className="font-semibold">{fmt.currencyFull(v)}</span>, footerRender: v => <span className="font-semibold">{fmt.currencyFull(v)}</span> },
-                                { key: 'roic', header: 'ROIC', align: 'right', render: v => <span className={`font-semibold ${v >= 0 ? 'text-success' : 'text-danger'}`}>{fmt.percent(v)}</span>, footerRender: v => <span className={`font-semibold ${v >= 0 ? 'text-success' : 'text-danger'}`}>{fmt.percent(v)}</span> },
+                                { key: 'growth', header: 'Growth %', align: 'right', render: (v, r) => { const growth = r.start > 0 ? (r.marketGain / r.start) * 100 : null; return growth !== null ? <span className={`font-semibold ${growth >= 0 ? 'text-success' : 'text-danger'}`}>{fmt.percent(growth)}</span> : <span className="text-gray-400">—</span>; }, footerRender: v => <span className={`font-semibold ${v >= 0 ? 'text-success' : 'text-danger'}`}>{fmt.percent(v)}</span> },
                               ]}
                               data={computed.accountROIC}
                               footer={{
@@ -1035,12 +1035,12 @@
                                 dividends: computed.accountROIC.reduce((s, a) => s + a.dividends, 0),
                                 marketGain: computed.accountROIC.reduce((s, a) => s + a.marketGain, 0),
                                 end: computed.accountROIC.reduce((s, a) => s + a.end, 0),
-                                roic: computed.marketGainPct
+                                growth: (() => { const totalStart = computed.accountROIC.reduce((s, a) => s + a.start, 0); const totalGain = computed.accountROIC.reduce((s, a) => s + a.marketGain, 0); return totalStart > 0 ? (totalGain / totalStart) * 100 : 0; })()
                               }}
                             />
                             <div className="px-5 py-3 bg-gray-50 dark:bg-gray-800/50 border-t border-gray-100 dark:border-gray-700">
                               <p className="text-xs text-gray-500 dark:text-gray-400">
-                                <strong>Formula:</strong> 2024 Value + Net Invested + Dividends + Market Gain = 2025 Value
+                                <strong>Formula:</strong> 2024 Value + Net Invested + Dividends + Market Gain = 2025 Value · <strong>Growth %</strong> = Market Gain / 2024 Value
                               </p>
                             </div>
                           </Card>
@@ -1063,7 +1063,7 @@
                                 { key: 'reinvested', header: 'Reinvested', align: 'right', render: v => v > 0 ? <span className="text-success">{fmt.currencyFull(v)}</span> : <span className="text-gray-400">—</span>, footerRender: v => <span className="text-success">{fmt.currencyFull(v)}</span> },
                                 { key: 'marketGain', header: 'Market Gain', align: 'right', render: v => <span className={v >= 0 ? 'text-success' : 'text-danger'}>{fmt.currencyFull(v)}</span>, footerRender: v => <span className={v >= 0 ? 'text-success' : 'text-danger'}>{fmt.currencyFull(v)}</span> },
                                 { key: 'val2025', header: '2025 Value', align: 'right', render: v => v > 0 ? <span className="font-semibold">{fmt.currencyFull(v)}</span> : <span className="text-gray-400">—</span>, footerRender: v => <span className="font-semibold">{fmt.currencyFull(v)}</span> },
-                                { key: 'roic', header: 'ROIC', align: 'right', render: (v, r) => { const base = r.val2024 + r.bought + r.reinvested - r.sold; const roic = base > 0 ? (r.marketGain / base) * 100 : 0; return <span className={`font-semibold ${roic >= 0 ? 'text-success' : 'text-danger'}`}>{fmt.percent(roic)}</span>; }, footerRender: v => <span className={`font-semibold ${v >= 0 ? 'text-success' : 'text-danger'}`}>{fmt.percent(v)}</span> },
+                                { key: 'growth', header: 'Growth %', align: 'right', render: (v, r) => { const growth = r.val2024 > 0 ? (r.marketGain / r.val2024) * 100 : null; return growth !== null ? <span className={`font-semibold ${growth >= 0 ? 'text-success' : 'text-danger'}`}>{fmt.percent(growth)}</span> : <span className="text-gray-400">—</span>; }, footerRender: v => <span className={`font-semibold ${v >= 0 ? 'text-success' : 'text-danger'}`}>{fmt.percent(v)}</span> },
                               ]}
                               data={computed.holdingsAnalysis}
                               footer={{
@@ -1074,12 +1074,12 @@
                                 reinvested: computed.holdingsAnalysis.reduce((s, h) => s + h.reinvested, 0),
                                 marketGain: computed.holdingsAnalysis.reduce((s, h) => s + h.marketGain, 0),
                                 val2025: computed.holdingsAnalysis.reduce((s, h) => s + h.val2025, 0),
-                                roic: computed.marketGainPct
+                                growth: (() => { const totalStart = computed.holdingsAnalysis.reduce((s, h) => s + h.val2024, 0); const totalGain = computed.holdingsAnalysis.reduce((s, h) => s + h.marketGain, 0); return totalStart > 0 ? (totalGain / totalStart) * 100 : 0; })()
                               }}
                             />
                             <div className="px-5 py-3 bg-gray-50 dark:bg-gray-800/50 border-t border-gray-100 dark:border-gray-700">
                               <p className="text-xs text-gray-500 dark:text-gray-400">
-                                <strong>Formula:</strong> 2024 Value + Bought + Reinvested − Sold + Market Gain = 2025 Value · <strong>ROIC</strong> = Market Gain / (2024 Value + Bought + Reinvested − Sold)
+                                <strong>Formula:</strong> 2024 Value + Bought + Reinvested − Sold + Market Gain = 2025 Value · <strong>Growth %</strong> = Market Gain / 2024 Value
                               </p>
                             </div>
                           </Card>
@@ -1131,7 +1131,7 @@
                           <Card><Stat label="2023 Start" value={fmt.compact(computed2024.startVal)} sub={`Stocks − Margin`} /></Card>
                           <Card><Stat label="Dividends" value={fmt.compact(computed2024.dividends)} sub="Cash received" /></Card>
                           <Card><Stat label="Net Invested" value={fmt.compact(computed2024.purchases + computed2024.reinvested - computed2024.sales)} sub="Buys + Reinv − Sells" /></Card>
-                          <Card className="border-accent/30"><Stat label="Market Gain" value={fmt.compact(computed2024.marketGain)} sub={`ROIC: ${fmt.percent(computed2024.marketGainPct)}`} accent /></Card>
+                          <Card className="border-accent/30"><Stat label="Market Gain" value={fmt.compact(computed2024.marketGain)} sub={`Growth: ${fmt.percent((computed2024.marketGain / computed2024.startVal) * 100)}`} accent /></Card>
                           <Card><Stat label="Purchases" value={fmt.compact(computed2024.purchases)} /></Card>
                           <Card><Stat label="Sales" value={fmt.compact(computed2024.sales)} /></Card>
                         </div>
@@ -1208,8 +1208,8 @@
                         {subTab2024 === 'By Account' && (
                           <Card>
                             <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700">
-                              <h2 className="font-semibold text-gray-900 dark:text-white">Account Performance & ROIC</h2>
-                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Return on invested capital by account</p>
+                              <h2 className="font-semibold text-gray-900 dark:text-white">Account Performance</h2>
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Growth by account (Market Gain / Start Value)</p>
                             </div>
                             <Table
                               columns={[
@@ -1219,7 +1219,7 @@
                                 { key: 'dividends', header: 'Dividends', align: 'right', render: v => <span className="text-success">{fmt.currencyFull(v)}</span>, footerRender: v => <span className="text-success">{fmt.currencyFull(v)}</span> },
                                 { key: 'marketGain', header: 'Market Gain', align: 'right', render: v => <span className={v >= 0 ? 'text-success' : 'text-danger'}>{fmt.currencyFull(v)}</span>, footerRender: v => <span className={v >= 0 ? 'text-success' : 'text-danger'}>{fmt.currencyFull(v)}</span> },
                                 { key: 'end', header: '2024 Value', align: 'right', render: v => <span className="font-semibold">{fmt.currencyFull(v)}</span>, footerRender: v => <span className="font-semibold">{fmt.currencyFull(v)}</span> },
-                                { key: 'roic', header: 'ROIC', align: 'right', render: v => <span className={`font-semibold ${v >= 0 ? 'text-success' : 'text-danger'}`}>{fmt.percent(v)}</span>, footerRender: v => <span className={`font-semibold ${v >= 0 ? 'text-success' : 'text-danger'}`}>{fmt.percent(v)}</span> },
+                                { key: 'growth', header: 'Growth %', align: 'right', render: (v, r) => { const growth = r.start > 0 ? (r.marketGain / r.start) * 100 : null; return growth !== null ? <span className={`font-semibold ${growth >= 0 ? 'text-success' : 'text-danger'}`}>{fmt.percent(growth)}</span> : <span className="text-gray-400">—</span>; }, footerRender: v => <span className={`font-semibold ${v >= 0 ? 'text-success' : 'text-danger'}`}>{fmt.percent(v)}</span> },
                               ]}
                               data={computed2024.accountROIC}
                               footer={{
@@ -1228,12 +1228,12 @@
                                 dividends: computed2024.accountROIC.reduce((s, a) => s + a.dividends, 0),
                                 marketGain: computed2024.accountROIC.reduce((s, a) => s + a.marketGain, 0),
                                 end: computed2024.accountROIC.reduce((s, a) => s + a.end, 0),
-                                roic: computed2024.marketGainPct
+                                growth: (() => { const totalStart = computed2024.accountROIC.reduce((s, a) => s + a.start, 0); const totalGain = computed2024.accountROIC.reduce((s, a) => s + a.marketGain, 0); return totalStart > 0 ? (totalGain / totalStart) * 100 : 0; })()
                               }}
                             />
                             <div className="px-5 py-3 bg-gray-50 dark:bg-gray-800/50 border-t border-gray-100 dark:border-gray-700">
                               <p className="text-xs text-gray-500 dark:text-gray-400">
-                                <strong>Formula:</strong> 2023 Value + Net Invested + Dividends + Market Gain = 2024 Value
+                                <strong>Formula:</strong> 2023 Value + Net Invested + Dividends + Market Gain = 2024 Value · <strong>Growth %</strong> = Market Gain / 2023 Value
                               </p>
                             </div>
                           </Card>
@@ -1256,7 +1256,7 @@
                                 { key: 'reinvested', header: 'Reinvested', align: 'right', render: v => v > 0 ? <span className="text-success">{fmt.currencyFull(v)}</span> : <span className="text-gray-400">—</span>, footerRender: v => <span className="text-success">{fmt.currencyFull(v)}</span> },
                                 { key: 'marketGain', header: 'Market Gain', align: 'right', render: v => <span className={v >= 0 ? 'text-success' : 'text-danger'}>{fmt.currencyFull(v)}</span>, footerRender: v => <span className={v >= 0 ? 'text-success' : 'text-danger'}>{fmt.currencyFull(v)}</span> },
                                 { key: 'val2024', header: '2024 Value', align: 'right', render: v => v > 0 ? <span className="font-semibold">{fmt.currencyFull(v)}</span> : <span className="text-gray-400">—</span>, footerRender: v => <span className="font-semibold">{fmt.currencyFull(v)}</span> },
-                                { key: 'roic', header: 'ROIC', align: 'right', render: (v, r) => { const base = r.val2023 + r.bought + r.reinvested - r.sold; const roic = base > 0 ? (r.marketGain / base) * 100 : 0; return <span className={`font-semibold ${roic >= 0 ? 'text-success' : 'text-danger'}`}>{fmt.percent(roic)}</span>; }, footerRender: v => <span className={`font-semibold ${v >= 0 ? 'text-success' : 'text-danger'}`}>{fmt.percent(v)}</span> },
+                                { key: 'growth', header: 'Growth %', align: 'right', render: (v, r) => { const growth = r.val2023 > 0 ? (r.marketGain / r.val2023) * 100 : null; return growth !== null ? <span className={`font-semibold ${growth >= 0 ? 'text-success' : 'text-danger'}`}>{fmt.percent(growth)}</span> : <span className="text-gray-400">—</span>; }, footerRender: v => <span className={`font-semibold ${v >= 0 ? 'text-success' : 'text-danger'}`}>{fmt.percent(v)}</span> },
                               ]}
                               data={computed2024.holdingsAnalysis}
                               footer={{
@@ -1267,12 +1267,12 @@
                                 reinvested: computed2024.holdingsAnalysis.reduce((s, h) => s + h.reinvested, 0),
                                 marketGain: computed2024.holdingsAnalysis.reduce((s, h) => s + h.marketGain, 0),
                                 val2024: computed2024.holdingsAnalysis.reduce((s, h) => s + h.val2024, 0),
-                                roic: computed2024.marketGainPct
+                                growth: (() => { const totalStart = computed2024.holdingsAnalysis.reduce((s, h) => s + h.val2023, 0); const totalGain = computed2024.holdingsAnalysis.reduce((s, h) => s + h.marketGain, 0); return totalStart > 0 ? (totalGain / totalStart) * 100 : 0; })()
                               }}
                             />
                             <div className="px-5 py-3 bg-gray-50 dark:bg-gray-800/50 border-t border-gray-100 dark:border-gray-700">
                               <p className="text-xs text-gray-500 dark:text-gray-400">
-                                <strong>Formula:</strong> 2023 Value + Bought + Reinvested − Sold + Market Gain = 2024 Value · <strong>ROIC</strong> = Market Gain / (2023 Value + Bought + Reinvested − Sold)
+                                <strong>Formula:</strong> 2023 Value + Bought + Reinvested − Sold + Market Gain = 2024 Value · <strong>Growth %</strong> = Market Gain / 2023 Value
                               </p>
                             </div>
                           </Card>
