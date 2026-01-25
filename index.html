@@ -112,13 +112,27 @@
       const accounts = {}, holdings = [];
       let totalValue = 0, totalCost = 0;
       data.forEach(r => {
-        const num = normalize(r.Account_Number);
+        let num = normalize(r.Account_Number);
+        let symbol = r.Symbol || '';
+        let description = r.Description || '';
+        let assetClass = r.Asset_Class || '';
+        
+        // Handle 401k/Pension rows where Account_Number contains account name instead of number
+        // and Asset_Class is "Pension Plan" - columns are shifted
+        if (!num && r.Account_Number && /401K|PENSION|RETIREMENT/i.test(r.Account_Number)) {
+          // For pension plans: Account_Number=name, Asset_Class=type, Symbol=CUSIP, Description=fund name
+          // Use the account name as identifier and description as symbol for matching
+          num = r.Account_Number.replace(/\s+/g, '_').toUpperCase();
+          // Use description as symbol for matching with transactions
+          symbol = description || symbol;
+        }
+        
         if (!num) return;
         const mv = parseFloat(r.Market_Value) || 0;
         const cb = parseFloat(r.Cost_Basis) || 0;
         holdings.push({
-          accountNumber: num, symbol: r.Symbol || '', description: r.Description || '',
-          assetClass: r.Asset_Class || '', quantity: parseFloat(r.Quantity) || 0,
+          accountNumber: num, symbol, description,
+          assetClass, quantity: parseFloat(r.Quantity) || 0,
           price: parseFloat(r.Price) || 0, marketValue: mv, costBasis: cb,
           gain: parseFloat(r.Unrealized_Gain_Loss) || 0
         });
@@ -136,11 +150,23 @@
       const names = {}, acctTx = {}, all = [];
       let buys = 0, sells = 0, reinv = 0;
       data.forEach(r => {
-        const num = normalize(r['Account Number']);
+        let num = normalize(r['Account Number']);
         const name = r.Account || '';
         const action = r.Action || '';
         const amt = parseFloat(r.Amount) || 0;
-        const symbol = r.Symbol || '';
+        let symbol = r.Symbol || '';
+        let description = r.Description || '';
+        
+        // Handle 401k/Pension accounts: normalize account number to match holdings format
+        if (/401K|PENSION|RETIREMENT/i.test(name)) {
+          num = name.replace(/\s+/g, '_').toUpperCase();
+        }
+        
+        // Handle 401k contributions: Symbol is empty, fund name is in Description
+        // For these rows, use Description as the symbol for matching
+        if (!symbol && /CONTRIBUTION/i.test(action) && description) {
+          symbol = description; // Use fund name as symbol for matching
+        }
         
         // Skip disclaimer/footer rows (no symbol, no amount, no account)
         if (!symbol && amt === 0 && !num) return;
@@ -151,7 +177,7 @@
         const type = classifyTransaction(action, amt, name);
         all.push({
           date: r['Run Date'] || '', account: name, accountNumber: num,
-          action, symbol: r.Symbol || '', description: r.Description || '',
+          action, symbol, description,
           quantity: parseFloat(r.Quantity) || 0, price: parseFloat(r.Price) || 0,
           amount: amt, type
         });
